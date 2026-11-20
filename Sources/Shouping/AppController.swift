@@ -36,8 +36,7 @@ final class AppController: ObservableObject {
     private var lastTick = Date()
     private var secondsSinceUsagePersist: TimeInterval = 0
     private var previewEnd: Date?
-    private var continuousUseSeconds: TimeInterval = 0
-    private var cycleRestEnd: Date?
+    private var cycleTracker = CycleTracker()
 
     init() {
         configurationStore = ConfigurationStore(fileURL: AppSupportPaths.configurationURL)
@@ -344,16 +343,13 @@ final class AppController: ObservableObject {
             usage: usage,
             now: now
         )
-        if next == nil, let cycleRestEnd, cycleRestEnd > now {
+        if next == nil, let cycleRestEnd = cycleTracker.restEnd, cycleRestEnd > now {
             next = ActiveRestriction(
                 reason: .cycleRest,
                 endDate: cycleRestEnd,
                 blockedBundleIdentifiers: configuration.limitedBundleIdentifiers,
                 allowsOnlySelectedApplications: false
             )
-        } else if let cycleRestEnd, cycleRestEnd <= now {
-            self.cycleRestEnd = nil
-            continuousUseSeconds = 0
         }
         activeRestriction = next
 
@@ -480,24 +476,15 @@ final class AppController: ObservableObject {
     }
 
     private func updateContinuousUse(elapsed: TimeInterval) {
-        guard configuration.cycle.isEnabled,
-              !configuration.limitedBundleIdentifiers.isEmpty,
-              cycleRestEnd == nil,
-              let bundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
-            if !configuration.cycle.isEnabled { continuousUseSeconds = 0 }
-            return
-        }
-
-        guard configuration.limitedBundleIdentifiers.contains(bundleIdentifier) else {
-            continuousUseSeconds = 0
-            return
-        }
-
-        continuousUseSeconds += elapsed
-        let useThreshold = TimeInterval(max(configuration.cycle.useMinutes, 1) * 60)
-        if continuousUseSeconds >= useThreshold {
-            cycleRestEnd = Date().addingTimeInterval(TimeInterval(max(configuration.cycle.restMinutes, 1) * 60))
-        }
+        let bundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let isLimitedUse = bundleIdentifier.map(configuration.limitedBundleIdentifiers.contains) ?? false
+        cycleTracker.update(
+            settings: configuration.cycle,
+            isLimitedUse: isLimitedUse && !shieldVisible,
+            isUserActive: isUserActive,
+            elapsed: elapsed,
+            now: Date()
+        )
     }
 
     private func chooseApplications(completion: @escaping ([AppDescriptor]) -> Void) {
@@ -510,22 +497,20 @@ final class AppController: ObservableObject {
         panel.allowedContentTypes = [.applicationBundle]
         panel.treatsFilePackagesAsDirectories = false
 
-        panel.begin { response in
-            guard response == .OK else { return }
-            let selected = panel.urls.compactMap { url -> AppDescriptor? in
-                guard let bundle = Bundle(url: url),
-                      let identifier = bundle.bundleIdentifier else { return nil }
-                let displayName = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-                    ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
-                    ?? url.deletingPathExtension().lastPathComponent
-                return AppDescriptor(
-                    bundleIdentifier: identifier,
-                    displayName: displayName,
-                    bundlePath: url.path
-                )
-            }
-            Task { @MainActor in completion(selected) }
+        guard panel.runModal() == .OK else { return }
+        let selected = panel.urls.compactMap { url -> AppDescriptor? in
+            guard let bundle = Bundle(url: url),
+                  let identifier = bundle.bundleIdentifier else { return nil }
+            let displayName = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
+                ?? url.deletingPathExtension().lastPathComponent
+            return AppDescriptor(
+                bundleIdentifier: identifier,
+                displayName: displayName,
+                bundlePath: url.path
+            )
         }
+        completion(selected)
     }
 
     static func durationText(seconds: Int) -> String {

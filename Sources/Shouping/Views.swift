@@ -601,23 +601,27 @@ struct ShieldView: View {
                             Text("允许使用")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.white.opacity(0.45))
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 10)], spacing: 10) {
-                                ForEach(controller.configuration.allowedApplications) { application in
-                                    Button {
-                                        controller.openApplication(application)
-                                    } label: {
-                                        HStack(spacing: 8) {
-                                            Image(nsImage: appIcon(for: application))
-                                                .resizable()
-                                                .frame(width: 24, height: 24)
-                                            Text(application.displayName)
-                                                .lineLimit(1)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(controller.configuration.allowedApplications) { application in
+                                        Button {
+                                            controller.openApplication(application)
+                                        } label: {
+                                            HStack(spacing: 8) {
+                                                Image(nsImage: appIcon(for: application))
+                                                    .resizable()
+                                                    .frame(width: 24, height: 24)
+                                                Text(application.displayName)
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .frame(height: 42)
                                         }
-                                        .padding(.horizontal, 12)
-                                        .frame(height: 42)
+                                        .buttonStyle(.bordered)
                                     }
-                                    .buttonStyle(.bordered)
                                 }
+                                .frame(maxWidth: 660)
+                                .frame(maxWidth: .infinity)
                             }
                             .frame(maxWidth: 660)
                         }

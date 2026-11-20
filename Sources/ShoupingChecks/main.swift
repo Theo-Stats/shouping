@@ -128,4 +128,25 @@ try expect(
 )
 try expect(reloaded.daily.applications.isEmpty, "跨日重置后旧记录仍然存在")
 
-print("ShoupingChecks: 8 checks passed")
+var cycle = CycleTracker()
+let cycleStart = date(2026, 11, 20, 12)
+cycle.update(
+    settings: CycleSettings(isEnabled: true, useMinutes: 30, restMinutes: 5),
+    isLimitedUse: true,
+    isUserActive: true,
+    elapsed: 1_800,
+    now: cycleStart
+)
+try expect(cycle.restEnd != nil, "连续使用达到阈值后没有开始休息")
+let restEnd = cycle.restEnd!
+cycle.update(
+    settings: CycleSettings(isEnabled: true, useMinutes: 30, restMinutes: 5),
+    isLimitedUse: true,
+    isUserActive: true,
+    elapsed: 1,
+    now: restEnd.addingTimeInterval(1)
+)
+try expect(cycle.restEnd == nil, "休息结束后没有清除休息状态")
+try expect(cycle.continuousSeconds == 0, "休息结束后没有重置连续使用计时")
+
+print("ShoupingChecks: 11 checks passed")

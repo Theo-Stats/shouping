@@ -73,6 +73,16 @@ try expect(
     ) == nil,
     "临时解锁未覆盖正在生效的规则"
 )
+try expect(
+    engine.activeRestriction(
+        configuration: focusConfiguration,
+        usage: DailyUsage(dayKey: "2027-01-15"),
+        now: fixedNow,
+        calendar: calendar,
+        honorTemporaryUnlock: false
+    )?.reason == .quickFocus,
+    "后台助手没有识别到临时解锁下仍然存在的专注承诺"
+)
 
 var limitConfiguration = AppConfiguration()
 limitConfiguration.limit = LimitSettings(isEnabled: true, dailyMinutes: 30)
@@ -149,4 +159,4 @@ cycle.update(
 try expect(cycle.restEnd == nil, "休息结束后没有清除休息状态")
 try expect(cycle.continuousSeconds == 0, "休息结束后没有重置连续使用计时")
 
-print("ShoupingChecks: 11 checks passed")
+print("ShoupingChecks: 12 checks passed")

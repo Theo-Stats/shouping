@@ -19,7 +19,7 @@ swift run -c debug ShoupingChecks
 - arm64 构建通过。
 - x86_64 交叉构建通过。
 - 主应用和后台 agent 均生成 arm64 + x86_64 通用二进制。
-- `ShoupingChecks: 8 checks passed`。
+- `ShoupingChecks: 12 checks passed`。
 - 检查项覆盖普通日程、跨午夜日程、临时解锁、每日额度、应用级筛选、使用数据持久化和跨日重置。
 
 ## 界面验证
@@ -37,6 +37,9 @@ swift run -c debug ShoupingChecks
 - 白名单中的“计算器”能在遮罩页直接启动。
 - 启动允许应用后遮罩隐藏；应用本身仍运行。
 - 遮罩覆盖系统菜单栏和桌面区域。
+- 首页可设置 1–720 分钟自定义专注，实际以 1 分钟和 17 分钟验证。
+- 预览页“暂停 5 分钟”修复后不会在下一秒重新出现。
+- 预览页“结束预览”修复后不会重新出现。
 
 ## 后台恢复验证
 
@@ -45,8 +48,10 @@ swift run -c debug ShoupingChecks
 - 运行打包后的 `ShoupingAgent`。
 - agent 成功执行 `/usr/bin/open -gj 守屏.app --args --background`。
 - 主应用在后台启动并恢复遮罩。
-- `SMAppService.agent(plistName:)` 成功注册，`launchctl` 显示 `com.example.shouping.agent`，15 秒周期。
+- `SMAppService.agent(plistName:)` 成功注册，`launchctl` 显示 `com.example.shouping.agent`，5 秒周期。
 - `SMAppService.mainApp` 登录项注册成功。
+- `sfltool dumpbtm` 显示主应用与后台 agent 都是 `enabled, allowed, notified`。
+- 专注生效时对主进程执行强制终止；5 秒检查周期内出现新的进程并恢复专注屏。
 
 ## 输入拦截验证
 

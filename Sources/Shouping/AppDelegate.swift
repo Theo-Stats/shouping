@@ -26,6 +26,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let controller, controller.canTerminateApplication else {
+            controller?.requestQuit()
+            return .terminateCancel
+        }
+        return .terminateNow
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        controller?.applicationDidBecomeActive()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         controller?.shutdown()
     }

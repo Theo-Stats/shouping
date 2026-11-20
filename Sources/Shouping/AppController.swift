@@ -19,6 +19,9 @@ final class AppController: ObservableObject {
     @Published private(set) var accessibilityTrusted = false
     @Published private(set) var inputMonitoringTrusted = false
     @Published private(set) var inputGateRunning = false
+    @Published private(set) var permissionTestMessage: String?
+    @Published private(set) var loginServiceStatusText = "正在检查"
+    @Published private(set) var backgroundServiceStatusText = "正在检查"
 
     var onStatusChange: (() -> Void)?
 
@@ -47,6 +50,7 @@ final class AppController: ObservableObject {
 
     func start() {
         refreshPermissions()
+        refreshServiceStatuses()
         installWorkspaceObservers()
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -85,7 +89,9 @@ final class AppController: ObservableObject {
     }
 
     func startQuickFocus(minutes: Int? = nil) {
-        let duration = max(minutes ?? configuration.focus.defaultFocusMinutes, 1)
+        let requested = minutes ?? configuration.focus.defaultFocusMinutes
+        let duration = min(max(requested, 1), 720)
+        previewEnd = nil
         mutateConfiguration {
             $0.focusEndUnixTime = Date().addingTimeInterval(TimeInterval(duration * 60)).timeIntervalSince1970
             $0.temporaryUnlockEndUnixTime = nil
@@ -95,6 +101,7 @@ final class AppController: ObservableObject {
     }
 
     func stopQuickFocus() {
+        previewEnd = nil
         mutateConfiguration {
             $0.focusEndUnixTime = nil
             $0.temporaryUnlockEndUnixTime = nil
@@ -103,6 +110,7 @@ final class AppController: ObservableObject {
     }
 
     func temporaryUnlock(minutes: Int = 5) {
+        previewEnd = nil
         mutateConfiguration {
             $0.temporaryUnlockEndUnixTime = Date()
                 .addingTimeInterval(TimeInterval(max(minutes, 1) * 60))
@@ -177,6 +185,25 @@ final class AppController: ObservableObject {
         onStatusChange?()
     }
 
+    func testInputAccess() {
+        refreshPermissions()
+        if inputGate.isRunning {
+            permissionTestMessage = "键盘事件过滤器当前已经成功运行。"
+            return
+        }
+
+        do {
+            try inputGate.start()
+            inputGate.stop()
+            inputGateRunning = false
+            permissionTestMessage = "测试成功：辅助功能与输入监控均可用。"
+        } catch {
+            inputGateRunning = false
+            permissionTestMessage = "测试未通过：\(error.localizedDescription)"
+        }
+        refreshPermissions()
+    }
+
     func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
@@ -200,6 +227,10 @@ final class AppController: ObservableObject {
         }
     }
 
+    func openLoginItemsSettings() {
+        SMAppService.openSystemSettingsLoginItems()
+    }
+
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled {
@@ -208,9 +239,11 @@ final class AppController: ObservableObject {
                 try SMAppService.mainApp.unregister()
             }
             mutateConfiguration { $0.launchAtLogin = enabled }
+            refreshServiceStatuses()
         } catch {
             mutateConfiguration { $0.launchAtLogin = false }
             lastError = "无法更新自动启动设置：\(error.localizedDescription)"
+            refreshServiceStatuses()
         }
     }
 
@@ -223,10 +256,34 @@ final class AppController: ObservableObject {
                 try service.unregister()
             }
             mutateConfiguration { $0.backgroundRecovery = enabled }
+            refreshServiceStatuses()
         } catch {
             mutateConfiguration { $0.backgroundRecovery = false }
             lastError = "无法更新后台恢复设置：\(error.localizedDescription)"
+            refreshServiceStatuses()
         }
+    }
+
+    func requestQuit() {
+        guard canTerminateApplication else {
+            lastError = "当前专注承诺仍在生效。请先临时解锁；后台恢复开启时，即使关闭主程序也会自动拉起。"
+            return
+        }
+        NSApp.terminate(nil)
+    }
+
+    func applicationDidBecomeActive() {
+        refreshPermissions()
+        refreshServiceStatuses()
+    }
+
+    var canTerminateApplication: Bool {
+        guard configuration.backgroundRecovery else { return true }
+        return underlyingRestriction == nil
+    }
+
+    var isPreviewing: Bool {
+        previewEnd != nil
     }
 
     func clearUsage() {
@@ -241,6 +298,10 @@ final class AppController: ObservableObject {
 
     var remainingText: String {
         guard let restriction = activeRestriction else {
+            if let unlockEnd = configuration.temporaryUnlockEndUnixTime,
+               Date(timeIntervalSince1970: unlockEnd) > Date() {
+                return "\(Self.durationText(seconds: Int(Date(timeIntervalSince1970: unlockEnd).timeIntervalSinceNow.rounded()))) 后恢复"
+            }
             return "当前没有生效的限制"
         }
         if let endDate = restriction.endDate {
@@ -253,6 +314,16 @@ final class AppController: ObservableObject {
     var remainingSeconds: Int {
         guard let endDate = activeRestriction?.endDate else { return 0 }
         return max(0, Int(endDate.timeIntervalSinceNow.rounded()))
+    }
+
+    var detailText: String {
+        if activeRestriction != nil {
+            return remainingText
+        }
+        if configuration.temporaryUnlockEndUnixTime.map({ Date(timeIntervalSince1970: $0) > Date() }) == true {
+            return "所有应用现在可正常使用；专注承诺仍未结束"
+        }
+        return "当前没有生效的限制"
     }
 
     private func installWorkspaceObservers() {
@@ -355,7 +426,12 @@ final class AppController: ObservableObject {
 
         if next == nil {
             hideShield()
-            statusText = "守屏待命"
+            if let unlockEnd = configuration.temporaryUnlockEndUnixTime,
+               Date(timeIntervalSince1970: unlockEnd) > now {
+                statusText = "已暂停 · \(remainingText)"
+            } else {
+                statusText = "守屏待命"
+            }
         } else if previous == nil || previous?.reason != next?.reason {
             showShield()
             statusText = "\(next?.reason.title ?? "专注") · \(remainingText)"
@@ -485,6 +561,37 @@ final class AppController: ObservableObject {
             elapsed: elapsed,
             now: Date()
         )
+    }
+
+    private var underlyingRestriction: ActiveRestriction? {
+        ruleEngine.activeRestriction(
+            configuration: configuration,
+            usage: usage,
+            now: Date(),
+            honorTemporaryUnlock: false
+        )
+    }
+
+    private func refreshServiceStatuses() {
+        loginServiceStatusText = Self.statusText(for: SMAppService.mainApp.status)
+        backgroundServiceStatusText = Self.statusText(
+            for: SMAppService.agent(plistName: "com.example.shouping.agent.plist").status
+        )
+    }
+
+    private static func statusText(for status: SMAppService.Status) -> String {
+        switch status {
+        case .enabled:
+            return "已注册并在系统允许状态"
+        case .requiresApproval:
+            return "等待“登录项与扩展”中的系统允许"
+        case .notRegistered:
+            return "未注册"
+        case .notFound:
+            return "系统未找到对应服务"
+        @unknown default:
+            return "未知状态"
+        }
     }
 
     private func chooseApplications(completion: @escaping ([AppDescriptor]) -> Void) {

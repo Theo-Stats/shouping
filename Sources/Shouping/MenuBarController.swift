@@ -53,6 +53,8 @@ final class MenuBarController: NSObject {
         let symbol: String
         if controller.shieldVisible {
             symbol = "shield.fill"
+        } else if controller.configuration.temporaryUnlockEndUnixTime.map({ Date(timeIntervalSince1970: $0) > Date() }) == true {
+            symbol = "pause.circle.fill"
         } else if controller.activeRestriction != nil {
             symbol = "shield.lefthalf.filled"
         } else {
@@ -70,5 +72,5 @@ final class MenuBarController: NSObject {
     @objc private func unlockFiveMinutes() { controller.temporaryUnlock(minutes: 5) }
     @objc private func stopFocus() { controller.stopQuickFocus() }
     @objc private func showDashboard() { openDashboard() }
-    @objc private func quitApplication() { NSApp.terminate(nil) }
+    @objc private func quitApplication() { controller.requestQuit() }
 }

@@ -9,7 +9,7 @@
     <key>RunAtLoad</key>
     <true/>
     <key>StartInterval</key>
-    <integer>15</integer>
+    <integer>5</integer>
     <key>ProcessType</key>
     <string>Background</string>
     <key>LowPriorityIO</key>

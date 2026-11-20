@@ -38,7 +38,8 @@ do {
     let restriction = RuleEngine().activeRestriction(
         configuration: configuration,
         usage: usageStore.daily,
-        now: Date()
+        now: Date(),
+        honorTemporaryUnlock: false
     )
 
     guard restriction != nil, configuration.backgroundRecovery else {

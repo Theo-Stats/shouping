@@ -7,9 +7,11 @@ public struct RuleEngine: Sendable {
         configuration: AppConfiguration,
         usage: DailyUsage,
         now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        honorTemporaryUnlock: Bool = true
     ) -> ActiveRestriction? {
-        if let unlockEnd = configuration.temporaryUnlockEndUnixTime,
+        if honorTemporaryUnlock,
+           let unlockEnd = configuration.temporaryUnlockEndUnixTime,
            Date(timeIntervalSince1970: unlockEnd) > now {
             return nil
         }

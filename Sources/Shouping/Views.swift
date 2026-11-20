@@ -43,6 +43,7 @@ struct MainView: View {
 
 private struct DashboardView: View {
     @EnvironmentObject private var controller: AppController
+    @State private var customMinutes = 30
 
     var body: some View {
         ScrollView {
@@ -50,6 +51,10 @@ private struct DashboardView: View {
                 header
                 quickStartCard
                 currentStateCard
+                if controller.configuration.focus.enforceKeyboardLock,
+                   (!controller.accessibilityTrusted || !controller.inputMonitoringTrusted) {
+                    permissionWarningCard
+                }
                 safetyCard
             }
             .padding(24)
@@ -92,6 +97,27 @@ private struct DashboardView: View {
                     Button("预览专注屏") { controller.previewShield() }
                         .buttonStyle(.bordered)
                 }
+
+                Divider()
+
+                HStack(spacing: 10) {
+                    Text("自定义")
+                    TextField("分钟", value: $customMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                    Text("分钟")
+                        .foregroundStyle(.secondary)
+                    Stepper("", value: $customMinutes, in: 1...720)
+                        .labelsHidden()
+                    Button("开始自定义专注") {
+                        controller.startQuickFocus(minutes: customMinutes)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Spacer()
+                    Text("可设置 1–720 分钟")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(8)
         }
@@ -106,7 +132,7 @@ private struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(controller.statusText)
                         .font(.title3.weight(.semibold))
-                    Text(controller.remainingText)
+                    Text(controller.detailText)
                         .font(.system(.title2, design: .monospaced, weight: .medium))
                 }
                 Spacer()
@@ -122,11 +148,30 @@ private struct DashboardView: View {
     private var safetyCard: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                Label("恢复优先", systemImage: "arrow.uturn.backward.circle")
+                Label("恢复与绕过边界", systemImage: "arrow.uturn.backward.circle")
                     .font(.headline)
-                Text("权限失效、事件过滤器异常或当前规则结束时，守屏会优先恢复可操作状态。强制键盘锁定时，可用 Control + Option + Command + U 立即临时解锁 5 分钟。")
+                Text("暂停 5 分钟会解除遮罩和键盘拦截，但不会结束当前专注承诺；开启后台恢复时，后台助手会继续保留守屏。普通 Mac 应用无法可靠阻止管理员删除应用、清空数据或使用“强制退出”，这些操作会直接显示为可见绕过。")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+        }
+    }
+
+    private var permissionWarningCard: some View {
+        GroupBox {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.lock.fill")
+                    .font(.title2)
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("强制键盘拦截尚未生效")
+                        .font(.headline)
+                    Text("当前仍会使用全屏遮挡，但键盘没有被拦截。请打开“权限”页完成检测。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
             }
             .padding(8)
         }
@@ -299,6 +344,21 @@ private struct RulesView: View {
                 Text("启用后，规则仍生效而主程序被关闭时，系统后台助手会重新启动守屏。可在同一位置关闭。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("登录启动：\(controller.loginServiceStatusText)")
+                        Text("后台恢复：\(controller.backgroundServiceStatusText)")
+                        HStack {
+                            Button("打开登录项设置") { controller.openLoginItemsSettings() }
+                            Spacer()
+                            Text("后台助手每 5 秒检查一次当前规则。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.caption)
+                    .padding(6)
+                }
             }
         }
         .formStyle(.grouped)
@@ -515,6 +575,28 @@ private struct PrivacyView: View {
                 }
 
                 GroupBox {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Image(systemName: controller.accessibilityTrusted && controller.inputMonitoringTrusted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .foregroundStyle(controller.accessibilityTrusted && controller.inputMonitoringTrusted ? .green : .red)
+                            Text(controller.accessibilityTrusted && controller.inputMonitoringTrusted ? "两项权限已生效" : "权限尚未成功生效")
+                                .font(.headline)
+                            Spacer()
+                            Button("实际测试") { controller.testInputAccess() }
+                        }
+                        if let message = controller.permissionTestMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("“系统设置里已勾选”不等同于当前构建已获得权限。更改签名后，macOS 可能要求重新授权。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                }
+
+                GroupBox {
                     HStack(spacing: 16) {
                         Image(systemName: controller.inputMonitoringTrusted ? "checkmark.shield.fill" : "exclamationmark.shield")
                             .font(.system(size: 34))
@@ -586,7 +668,7 @@ struct ShieldView: View {
                         .foregroundStyle(.teal)
 
                     VStack(spacing: 8) {
-                        Text(controller.activeRestriction?.reason.title ?? "专注预览")
+                        Text(controller.isPreviewing ? "专注屏预览" : (controller.activeRestriction?.reason.title ?? "专注"))
                             .font(.system(size: 38, weight: .bold, design: .rounded))
                         Text(controller.remainingText)
                             .font(.system(size: 58, weight: .semibold, design: .monospaced))
@@ -630,8 +712,8 @@ struct ShieldView: View {
                     HStack(spacing: 14) {
                         Button("临时解锁 5 分钟") { controller.temporaryUnlock(minutes: 5) }
                             .buttonStyle(.bordered)
-                        if controller.activeRestriction?.reason == .quickFocus {
-                            Button("结束本次专注") { controller.stopQuickFocus() }
+                        if controller.isPreviewing || controller.activeRestriction?.reason == .quickFocus {
+                            Button(controller.isPreviewing ? "结束预览" : "结束本次专注") { controller.stopQuickFocus() }
                                 .buttonStyle(.bordered)
                         }
                     }

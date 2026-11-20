@@ -1,0 +1,10 @@
+.build/
+.build-x86_64/
+build/
+Resources/AppIcon.iconset/
+*.p12
+*.pem
+*.key
+*.csr
+*.cer
+.DS_Store

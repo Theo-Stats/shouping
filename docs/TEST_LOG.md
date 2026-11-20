@@ -1,6 +1,7 @@
 # MVP 验收记录
 
-日期：2026-11-20  
+日期：2026-11-21
+
 环境：macOS 26.2，Apple Silicon，Swift 6.2.4，Command Line Tools macOSX.sdk 26.2
 
 ## 自动检查

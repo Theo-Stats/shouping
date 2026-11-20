@@ -50,7 +50,7 @@ final class AppController: ObservableObject {
 
     func start() {
         refreshPermissions()
-        refreshServiceStatuses()
+        reconcileServicesForCurrentBuild()
         installWorkspaceObservers()
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -577,6 +577,35 @@ final class AppController: ObservableObject {
         backgroundServiceStatusText = Self.statusText(
             for: SMAppService.agent(plistName: "com.example.shouping.agent.plist").status
         )
+    }
+
+    private func reconcileServicesForCurrentBuild() {
+        let defaultsKey = "registeredServiceBuild"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        let previousBuild = UserDefaults.standard.string(forKey: defaultsKey)
+
+        if previousBuild != build {
+            let mainApp = SMAppService.mainApp
+            if configuration.launchAtLogin,
+               (mainApp.status == .notRegistered || mainApp.status == .enabled) {
+                if mainApp.status == .enabled {
+                    try? mainApp.unregister()
+                }
+                try? mainApp.register()
+            }
+
+            let agent = SMAppService.agent(plistName: "com.example.shouping.agent.plist")
+            if configuration.backgroundRecovery,
+               (agent.status == .notRegistered || agent.status == .enabled) {
+                if agent.status == .enabled {
+                    try? agent.unregister()
+                }
+                try? agent.register()
+            }
+            UserDefaults.standard.set(build, forKey: defaultsKey)
+        }
+
+        refreshServiceStatuses()
     }
 
     private static func statusText(for status: SMAppService.Status) -> String {

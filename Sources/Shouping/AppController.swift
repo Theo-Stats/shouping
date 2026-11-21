@@ -145,14 +145,13 @@ final class AppController: ObservableObject {
         }
     }
 
-    func startQuickFocus(minutes: Int? = nil) {
+    func startQuickFocus(minutes: Int) {
         if (configuration.focus.controls.allowPause || configuration.focus.controls.allowSkip),
            !hasExitPassword {
             lastError = "请先在“设置 → 暂停与跳过”中设置退出密码，或在开始前关闭暂停和跳过入口。"
             return
         }
-        let requested = minutes ?? configuration.focus.defaultFocusMinutes
-        let duration = min(max(requested, 1), 24 * 60)
+        let duration = min(max(minutes, 1), 24 * 60)
         previewEnd = nil
         mutateConfiguration {
             $0.focusEndUnixTime = Date().addingTimeInterval(TimeInterval(duration * 60)).timeIntervalSince1970

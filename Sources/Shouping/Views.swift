@@ -274,16 +274,6 @@ private struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Stepper(
-                    "默认专注时长：\(controller.configuration.focus.defaultFocusMinutes) 分钟",
-                    value: Binding(
-                        get: { controller.configuration.focus.defaultFocusMinutes },
-                        set: { value in controller.mutateConfiguration { $0.focus.defaultFocusMinutes = value } }
-                    ),
-                    in: 5...180,
-                    step: 5
-                )
-
                 Toggle(
                     "强制模式同时拦截键盘输入",
                     isOn: Binding(

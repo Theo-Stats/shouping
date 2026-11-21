@@ -1015,7 +1015,6 @@ struct ShieldView: View {
                     HStack(spacing: 12) {
                         shieldControlButton(
                             title: controller.systemAudioMuted ? "取消静音" : "静音",
-                            systemImage: controller.systemAudioMuted ? "speaker.wave.2.fill" : "speaker.slash",
                             action: controller.toggleSystemAudioMute
                         )
                         .help(controller.systemAudioMuted ? "恢复系统声音" : "将当前系统输出静音")
@@ -1023,14 +1022,12 @@ struct ShieldView: View {
                         if controller.canPauseCurrentRestriction {
                             shieldControlButton(
                                 title: "暂停",
-                                systemImage: "pause.fill",
                                 action: controller.requestPauseAuthorization
                             )
                         }
                         if controller.canSkipCurrentRestriction {
                             shieldControlButton(
                                 title: "结束",
-                                systemImage: "forward.end.fill",
                                 action: controller.requestSkipAuthorization
                             )
                         }
@@ -1083,19 +1080,11 @@ struct ShieldView: View {
 
     private func shieldControlButton(
         title: String,
-        systemImage: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 11, height: 11)
-                Text(title)
-            }
+        Button(title, action: action)
             .font(.system(size: 12, weight: .medium))
-        }
+            .frame(minHeight: 16)
     }
 
     @ViewBuilder

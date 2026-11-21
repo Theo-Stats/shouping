@@ -13,6 +13,9 @@ enum WeatherServiceError: LocalizedError {
     case cityNotFound
     case invalidResponse
     case httpStatus(Int)
+    case timedOut
+    case networkUnavailable
+    case network(String)
 
     var errorDescription: String? {
         switch self {
@@ -20,11 +23,22 @@ enum WeatherServiceError: LocalizedError {
         case .cityNotFound: return "没有找到这个城市。"
         case .invalidResponse: return "天气服务返回了无法识别的数据。"
         case .httpStatus(let status): return "天气服务请求失败（HTTP \(status)）。"
+        case .timedOut: return "天气服务响应超时，请重试。"
+        case .networkUnavailable: return "当前网络暂不可用，请检查连接。"
+        case .network(let message): return "天气服务连接失败：\(message)"
         }
     }
 }
 
 struct WeatherService {
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 12
+        configuration.timeoutIntervalForResource = 20
+        configuration.waitsForConnectivity = false
+        return URLSession(configuration: configuration)
+    }()
+
     private struct GeocodingResponse: Decodable {
         struct Result: Decodable {
             let name: String
@@ -84,7 +98,25 @@ struct WeatherService {
     }
 
     private func request<T: Decodable>(_ url: URL) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.cachePolicy = .reloadRevalidatingCacheData
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await Self.session.data(for: request)
+        } catch let error as URLError {
+            switch error.code {
+            case .timedOut:
+                throw WeatherServiceError.timedOut
+            case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost,
+                 .cannotConnectToHost, .dnsLookupFailed:
+                throw WeatherServiceError.networkUnavailable
+            default:
+                throw WeatherServiceError.network(error.localizedDescription)
+            }
+        }
         guard let response = response as? HTTPURLResponse else {
             throw WeatherServiceError.invalidResponse
         }

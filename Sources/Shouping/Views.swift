@@ -997,7 +997,8 @@ struct ShieldView: View {
                     .font(.title2)
                     .foregroundStyle(.white.opacity(0.55))
 
-                if controller.configuration.appearance.weatherEnabled {
+                if controller.configuration.appearance.weatherEnabled,
+                   !controller.weatherHiddenForCurrentShield {
                     if let weather = controller.weather {
                         HStack(spacing: 8) {
                             Image(systemName: weather.symbolName)
@@ -1007,6 +1008,33 @@ struct ShieldView: View {
                         }
                         .font(.title2)
                         .foregroundStyle(.white.opacity(0.78))
+                    } else if controller.isRefreshingWeather {
+                        HStack(spacing: 7) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(controller.weatherStatusText)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.42))
+                    } else if controller.weatherLoadFailed {
+                        HStack(spacing: 8) {
+                            Text(controller.weatherStatusText)
+                                .lineLimit(2)
+                            Button("重新获取") { controller.refreshWeather() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            Button {
+                                controller.dismissWeatherForCurrentShield()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .frame(width: 18, height: 18)
+                            }
+                            .buttonStyle(.plain)
+                            .help("本次屏保不显示天气")
+                            .accessibilityLabel("本次屏保不显示天气")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.46))
                     } else {
                         Text(controller.weatherStatusText)
                             .font(.caption)

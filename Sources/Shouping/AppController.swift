@@ -36,6 +36,9 @@ final class AppController: ObservableObject {
     @Published private(set) var authorizationError: String?
     @Published private(set) var weather: WeatherSnapshot?
     @Published private(set) var weatherStatusText = "天气未加载"
+    @Published private(set) var isRefreshingWeather = false
+    @Published private(set) var weatherLoadFailed = false
+    @Published private(set) var weatherHiddenForCurrentShield = false
     @Published private(set) var holidayStatusText = "工作日历使用本地星期规则"
 
     var onStatusChange: (() -> Void)?
@@ -59,6 +62,7 @@ final class AppController: ObservableObject {
     private var lastTick = Date()
     private var secondsSinceUsagePersist: TimeInterval = 0
     private var lastWeatherRefresh: Date?
+    private var weatherRetryAfter: Date?
     private var lastHolidayRefreshCheck: Date?
     private var previewEnd: Date?
     private var cycleTracker = CycleTracker()
@@ -152,6 +156,7 @@ final class AppController: ObservableObject {
             return
         }
         let duration = min(max(minutes, 1), 24 * 60)
+        weatherHiddenForCurrentShield = false
         previewEnd = nil
         mutateConfiguration {
             $0.focusEndUnixTime = Date().addingTimeInterval(TimeInterval(duration * 60)).timeIntervalSince1970
@@ -307,6 +312,7 @@ final class AppController: ObservableObject {
     }
 
     func previewShield() {
+        weatherHiddenForCurrentShield = false
         previewEnd = Date().addingTimeInterval(10)
         overlayController.show()
         updateInputGate(for: false)
@@ -520,28 +526,52 @@ final class AppController: ObservableObject {
         let city = configuration.appearance.weatherCity
         guard configuration.appearance.weatherEnabled else {
             weather = nil
+            isRefreshingWeather = false
+            weatherLoadFailed = false
             weatherStatusText = "天气显示已关闭"
             return
         }
         guard !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             weather = nil
+            isRefreshingWeather = false
+            weatherLoadFailed = true
             weatherStatusText = "请填写城市后获取天气"
             return
         }
+        guard !isRefreshingWeather else { return }
 
+        isRefreshingWeather = true
+        weatherLoadFailed = false
         weatherStatusText = "正在获取天气…"
         Task { [weak self] in
             guard let self else { return }
             do {
-                let snapshot = try await WeatherService().fetch(city: city)
-                self.weather = snapshot
-                self.lastWeatherRefresh = Date()
-                self.weatherStatusText = "\(snapshot.city) \(snapshot.condition) \(snapshot.temperatureCelsius)°C"
+                let snapshot = try await weatherService.fetch(city: city)
+                guard configuration.appearance.weatherEnabled,
+                      configuration.appearance.weatherCity == city else {
+                    isRefreshingWeather = false
+                    return
+                }
+                weather = snapshot
+                lastWeatherRefresh = Date()
+                weatherRetryAfter = nil
+                weatherLoadFailed = false
+                weatherStatusText = "\(snapshot.city) \(snapshot.condition) \(snapshot.temperatureCelsius)°C"
             } catch {
-                self.weather = nil
-                self.weatherStatusText = error.localizedDescription
+                if configuration.appearance.weatherEnabled,
+                   configuration.appearance.weatherCity == city {
+                    weather = nil
+                    weatherLoadFailed = true
+                    weatherRetryAfter = Date().addingTimeInterval(30)
+                    weatherStatusText = error.localizedDescription
+                }
             }
+            isRefreshingWeather = false
         }
+    }
+
+    func dismissWeatherForCurrentShield() {
+        weatherHiddenForCurrentShield = true
     }
 
     func clearError() {
@@ -685,6 +715,9 @@ final class AppController: ObservableObject {
                 allowsOnlySelectedApplications: false
             )
         }
+        if previous == nil || previous?.reason != next?.reason {
+            weatherHiddenForCurrentShield = false
+        }
         activeRestriction = next
 
         if next == nil {
@@ -741,11 +774,14 @@ final class AppController: ObservableObject {
               !configuration.appearance.weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
+        guard !isRefreshingWeather else { return }
         if let lastWeatherRefresh,
            now.timeIntervalSince(lastWeatherRefresh) < 1_800 {
             return
         }
-        lastWeatherRefresh = now
+        if let weatherRetryAfter, weatherRetryAfter > now {
+            return
+        }
         refreshWeather()
     }
 

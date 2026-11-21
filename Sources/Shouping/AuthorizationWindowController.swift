@@ -54,7 +54,6 @@ private struct ExitAuthorizationView: View {
     @State private var isVerified = false
     @State private var amount = 5
     @State private var unit = PauseUnit.minutes
-    @FocusState private var passwordFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -72,10 +71,12 @@ private struct ExitAuthorizationView: View {
             }
 
             if !isVerified {
-                SecureField("退出密码", text: $password)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($passwordFocused)
-                    .onSubmit(verify)
+                RevealablePasswordField(
+                    text: $password,
+                    prompt: "退出密码",
+                    focusOnAppear: true,
+                    onSubmit: verify
+                )
 
                 if let error = controller.authorizationError {
                     Text(error)
@@ -141,7 +142,6 @@ private struct ExitAuthorizationView: View {
         }
         .padding(26)
         .frame(minWidth: 460, minHeight: 300)
-        .onAppear { passwordFocused = true }
     }
 
     private var pauseSeconds: TimeInterval {

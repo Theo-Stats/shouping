@@ -935,11 +935,9 @@ private struct PasswordSetupView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            SecureField("新密码（至少 4 位）", text: $password)
-                .textFieldStyle(.roundedBorder)
+            RevealablePasswordField(text: $password, prompt: "新密码（至少 4 位）")
                 .onChange(of: password) { _, _ in passwordDidChange() }
-            SecureField("再次输入密码", text: $confirmation)
-                .textFieldStyle(.roundedBorder)
+            RevealablePasswordField(text: $confirmation, prompt: "再次输入密码")
                 .onChange(of: confirmation) { _, _ in resetCopyStatus() }
 
             if let generatedAt, generatedPassword == password {
@@ -986,7 +984,7 @@ private struct PasswordSetupView: View {
             }
 
             if didCopyForAdoption {
-                Label("已复制密码、生成时间和用途说明。请把内容发送给保密人后再采用。", systemImage: "checkmark.circle.fill")
+                Label("已复制密码和生成时间。请发送给保密人后再采用。", systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.green)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1007,24 +1005,7 @@ private struct PasswordSetupView: View {
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
-                Button("直接保存") {
-                    guard password == confirmation else {
-                        error = "两次输入的密码不一致。"
-                        return
-                    }
-                    if controller.setExitPassword(password) {
-                        dismiss()
-                    } else {
-                        error = controller.lastError
-                    }
-                }
-                .disabled(password.count < 4 || confirmation.isEmpty)
             }
-
-            Text("“直接保存”适合自己临时设置密码。若准备把密码交给保密人，请先复制，再点击“此次采用密码”完成三次确认。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(24)
         .frame(width: 540)
@@ -1144,9 +1125,7 @@ private struct PasswordRemovalView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            SecureField("当前退出密码", text: $currentPassword)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(removePassword)
+            RevealablePasswordField(text: $currentPassword, prompt: "当前退出密码", onSubmit: removePassword)
 
             if let error {
                 Text(error)

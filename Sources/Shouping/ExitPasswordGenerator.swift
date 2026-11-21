@@ -11,23 +11,16 @@ enum ExitPasswordGenerator {
     }
 
     static func sharingText(for password: String, generatedAt: Date) -> String {
-        let timestamp = generatedAt.formatted(
-            .dateTime
-                .year()
-                .month(.twoDigits)
-                .day(.twoDigits)
-                .hour(.twoDigits(amPM: .omitted))
-                .minute(.twoDigits)
-                .second(.twoDigits)
-                .locale(Locale(identifier: "zh_CN"))
-        )
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy/MM/dd HH:mm:ss"
+        let timestamp = formatter.string(from: generatedAt)
 
         return """
-        守屏（首屏）退出密码
+        守屏应用密码
         密码：\(password)
         生成时间：\(timestamp)
-        用途：在守屏进入专注后，暂停或跳过本次限制时使用。
-        使用要求：只有当你确实需要暂停或跳过时，才请保密人把密码告诉你。
         """
     }
 }

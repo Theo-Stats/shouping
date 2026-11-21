@@ -144,7 +144,7 @@ final class AppController: ObservableObject {
     func startQuickFocus(minutes: Int? = nil) {
         if (configuration.focus.controls.allowPause || configuration.focus.controls.allowSkip),
            !hasExitPassword {
-            lastError = "请先在“规则 → 暂停与跳过”中设置退出密码，或在开始前关闭暂停和跳过入口。"
+            lastError = "请先在“设置 → 暂停与跳过”中设置退出密码，或在开始前关闭暂停和跳过入口。"
             return
         }
         let requested = minutes ?? configuration.focus.defaultFocusMinutes
@@ -172,7 +172,7 @@ final class AppController: ObservableObject {
             return
         }
         guard hasExitPassword else {
-            lastError = "请先在“规则 → 暂停与跳过”中设置退出密码。"
+            lastError = "请先在“设置 → 暂停与跳过”中设置退出密码。"
             return
         }
 
@@ -193,7 +193,7 @@ final class AppController: ObservableObject {
         }
 
         guard hasExitPassword else {
-            lastError = "请先在“规则 → 暂停与跳过”中设置退出密码。"
+            lastError = "请先在“设置 → 暂停与跳过”中设置退出密码。"
             return
         }
 

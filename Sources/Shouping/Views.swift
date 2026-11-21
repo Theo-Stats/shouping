@@ -9,8 +9,8 @@ struct MainView: View {
         TabView {
             DashboardView()
                 .tabItem { Label("今天", systemImage: "sun.max") }
-            RulesView()
-                .tabItem { Label("规则", systemImage: "slider.horizontal.3") }
+            SettingsView()
+                .tabItem { Label("设置", systemImage: "gearshape") }
             ApplicationsView()
                 .tabItem { Label("应用", systemImage: "square.grid.2x2") }
             UsageView()
@@ -55,7 +55,6 @@ private struct DashboardView: View {
                    (!controller.accessibilityTrusted || !controller.inputMonitoringTrusted) {
                     permissionWarningCard
                 }
-                safetyCard
             }
             .padding(24)
             .frame(maxWidth: 760, alignment: .leading)
@@ -153,19 +152,6 @@ private struct DashboardView: View {
         }
     }
 
-    private var safetyCard: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("恢复与绕过边界", systemImage: "arrow.uturn.backward.circle")
-                    .font(.headline)
-                Text("暂停与跳过会按你的规则决定是否开放。暂停只解除 5 分钟；跳过会结束当前专注或让当前时段失效到自然结束。普通 Mac 应用无法可靠阻止管理员删除应用、清空数据或使用“强制退出”，这些操作会直接显示为可见绕过。")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(8)
-        }
-    }
-
     private var permissionWarningCard: some View {
         GroupBox {
             HStack(spacing: 12) {
@@ -186,14 +172,63 @@ private struct DashboardView: View {
     }
 }
 
-private struct RulesView: View {
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case focus
+    case controls
+    case clock
+    case schedules
+    case dailyLimit
+    case cycle
+    case runtime
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .focus: return "专注强度"
+        case .controls: return "暂停与跳过"
+        case .clock: return "时钟屏保"
+        case .schedules: return "定时专注"
+        case .dailyLimit: return "每日额度"
+        case .cycle: return "连续使用与休息"
+        case .runtime: return "运行"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .focus: return "timer"
+        case .controls: return "key.fill"
+        case .clock: return "clock"
+        case .schedules: return "calendar"
+        case .dailyLimit: return "gauge.with.dots.needle.50percent"
+        case .cycle: return "arrow.triangle.2.circlepath"
+        case .runtime: return "power"
+        }
+    }
+}
+
+private struct SettingsView: View {
     @EnvironmentObject private var controller: AppController
     @State private var showingPasswordSetup = false
     @State private var showingPasswordRemoval = false
+    @State private var selectedSection: SettingsSection = .focus
 
     var body: some View {
-        Form {
-            Section("专注强度") {
+        ScrollViewReader { proxy in
+            HStack(spacing: 0) {
+                SettingsSidebar(selection: selectedSection) { section in
+                    selectedSection = section
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        proxy.scrollTo(section.id, anchor: .top)
+                    }
+                }
+
+                Divider()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        SettingsCard(.focus) {
                 Picker(
                     "默认方式",
                     selection: Binding(
@@ -227,9 +262,10 @@ private struct RulesView: View {
                 Text("只在专注屏显示时生效；不记录按键内容。需要额外系统权限。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
+                        }
+                        .id(SettingsSection.focus.id)
 
-            Section("暂停与跳过") {
+                        SettingsCard(.controls) {
                 Toggle(
                     "允许暂停 5 分钟",
                     isOn: Binding(
@@ -265,9 +301,10 @@ private struct RulesView: View {
                 Text("密码保存在 macOS Keychain。未设置密码时，暂停和跳过入口不会出现。密码无法找回；移除密码前需要验证当前密码。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
+                        }
+                        .id(SettingsSection.controls.id)
 
-            Section("时钟屏保") {
+                        SettingsCard(.clock) {
                 Toggle(
                     "显示天气",
                     isOn: Binding(
@@ -298,9 +335,10 @@ private struct RulesView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
+                        }
+                        .id(SettingsSection.clock.id)
 
-            Section("定时专注") {
+                        SettingsCard(.schedules) {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("中国大陆工作日历")
@@ -326,9 +364,10 @@ private struct RulesView: View {
                 }
 
                 Button("＋ 添加时间方案") { controller.addScheduleRule() }
-            }
+                        }
+                        .id(SettingsSection.schedules.id)
 
-            Section("每日额度") {
+                        SettingsCard(.dailyLimit) {
                 Toggle(
                     "限制指定应用",
                     isOn: Binding(
@@ -348,9 +387,10 @@ private struct RulesView: View {
                 Text("在“应用”页选择受额度限制的应用。额度按本机活跃使用时间累计。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
+                        }
+                        .id(SettingsSection.dailyLimit.id)
 
-            Section("连续使用与休息") {
+                        SettingsCard(.cycle) {
                 Toggle(
                     "限制连续使用",
                     isOn: Binding(
@@ -379,9 +419,10 @@ private struct RulesView: View {
                 Text("连续使用规则作用于“计入每日额度的应用”。离开这些应用会中断连续计时。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
+                        }
+                        .id(SettingsSection.cycle.id)
 
-            Section("运行") {
+                        SettingsCard(.runtime) {
                 Toggle(
                     "登录后自动启动",
                     isOn: Binding(
@@ -424,10 +465,15 @@ private struct RulesView: View {
                     .font(.caption)
                     .padding(6)
                 }
+                        }
+                        .id(SettingsSection.runtime.id)
+                    }
+                    .padding(24)
+                    .frame(maxWidth: 780, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
             }
         }
-        .formStyle(.grouped)
-        .padding(.horizontal, 8)
         .sheet(isPresented: $showingPasswordSetup) {
             PasswordSetupView()
                 .environmentObject(controller)
@@ -437,8 +483,79 @@ private struct RulesView: View {
                 .environmentObject(controller)
         }
     }
+}
 
-    private static let weekdays = ["日", "一", "二", "三", "四", "五", "六"]
+private struct SettingsSidebar: View {
+    let selection: SettingsSection
+    let onSelect: (SettingsSection) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("设置")
+                .font(.title2.weight(.bold))
+                .padding(.horizontal, 10)
+            Text("点击标题跳转")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 8)
+
+            ForEach(SettingsSection.allCases) { section in
+                let isSelected = section == selection
+                Button {
+                    onSelect(section)
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: section.icon)
+                            .frame(width: 18)
+                        Text(section.title)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .font(.callout.weight(isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                    .background(
+                        isSelected ? Color.accentColor : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 7)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+            Spacer()
+        }
+        .padding(12)
+        .frame(minWidth: 160, idealWidth: 176, maxWidth: 210)
+        .background(.regularMaterial)
+    }
+}
+
+private struct SettingsCard<Content: View>: View {
+    let section: SettingsSection
+    let content: Content
+
+    init(_ section: SettingsSection, @ViewBuilder content: () -> Content) {
+        self.section = section
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(section.title, systemImage: section.icon)
+                .font(.title3.weight(.semibold))
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    content
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
 }
 
 private struct ScheduleRuleEditor: View {
@@ -808,7 +925,7 @@ private struct PrivacyView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("本地数据", systemImage: "internaldrive")
                             .font(.headline)
-                        Text("规则、应用列表和今日使用时长保存在 Application Support/Shouping。应用不会上传窗口标题、网页正文、屏幕画面或按键内容。")
+                        Text("设置、应用列表和今日使用时长保存在 Application Support/Shouping。应用不会上传窗口标题、网页正文、屏幕画面或按键内容。")
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

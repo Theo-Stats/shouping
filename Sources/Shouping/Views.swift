@@ -1013,14 +1013,30 @@ struct ShieldView: View {
                     }
 
                     HStack(spacing: 12) {
+                        shieldControlButton(
+                            title: controller.systemAudioMuted ? "取消静音" : "静音",
+                            systemImage: controller.systemAudioMuted ? "speaker.wave.2.fill" : "speaker.slash",
+                            action: controller.toggleSystemAudioMute
+                        )
+                        .help(controller.systemAudioMuted ? "恢复系统声音" : "将当前系统输出静音")
+
                         if controller.canPauseCurrentRestriction {
-                            Button("暂停") { controller.requestPauseAuthorization() }
+                            shieldControlButton(
+                                title: "暂停",
+                                systemImage: "pause.fill",
+                                action: controller.requestPauseAuthorization
+                            )
                         }
                         if controller.canSkipCurrentRestriction {
-                            Button(skipButtonTitle) { controller.requestSkipAuthorization() }
+                            shieldControlButton(
+                                title: "结束",
+                                systemImage: "forward.end.fill",
+                                action: controller.requestSkipAuthorization
+                            )
                         }
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .padding(.bottom, 42)
                 } else {
                     Color.clear.frame(height: 42)
@@ -1063,6 +1079,23 @@ struct ShieldView: View {
         .foregroundStyle(.white.opacity(0.4))
         .help(controller.shieldDetailsVisible ? "隐藏附加信息" : "显示附加信息")
         .accessibilityLabel(controller.shieldDetailsVisible ? "隐藏附加信息" : "显示附加信息")
+    }
+
+    private func shieldControlButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 11, height: 11)
+                Text(title)
+            }
+            .font(.system(size: 12, weight: .medium))
+        }
     }
 
     @ViewBuilder
@@ -1129,11 +1162,6 @@ struct ShieldView: View {
         return NSWorkspace.shared.icon(forFile: path)
     }
 
-    private var skipButtonTitle: String {
-        if controller.isPreviewing { return "结束预览" }
-        if controller.activeRestriction?.reason == .quickFocus { return "结束本次专注" }
-        return "跳过当前限制"
-    }
 }
 
 private struct PasswordSetupView: View {

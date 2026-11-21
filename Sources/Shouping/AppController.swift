@@ -22,6 +22,7 @@ final class AppController: ObservableObject {
     @Published private(set) var activeRestriction: ActiveRestriction?
     @Published private(set) var shieldVisible = false
     @Published private(set) var shieldDetailsVisible = true
+    @Published private(set) var systemAudioMuted = false
     @Published private(set) var statusText = "正在启动"
     @Published private(set) var lastError: String?
     @Published private(set) var accessibilityTrusted = false
@@ -44,6 +45,7 @@ final class AppController: ObservableObject {
     private let ruleEngine = RuleEngine()
     private let exitPasswordStore = ExitPasswordStore()
     private let weatherService = WeatherService()
+    private let systemAudioController = SystemAudioController()
     private var holidayCalendar: ChineseHolidayCalendar
     private lazy var overlayController = OverlayController(controller: self)
     private lazy var inputGate = InputGate { [weak self] in
@@ -68,6 +70,7 @@ final class AppController: ObservableObject {
         configuration = configurationStore.load()
         usage = usageStore.daily
         hasExitPassword = exitPasswordStore.hasPassword
+        systemAudioMuted = (try? systemAudioController.isMuted()) ?? false
         if !holidayCalendar.loadedYears.isEmpty {
             let years = holidayCalendar.loadedYears.sorted().map(String.init).joined(separator: "、")
             holidayStatusText = "已缓存中国大陆工作日历：\(years) 年"
@@ -313,6 +316,15 @@ final class AppController: ObservableObject {
 
     func toggleShieldDetails() {
         shieldDetailsVisible.toggle()
+    }
+
+    func toggleSystemAudioMute() {
+        do {
+            systemAudioMuted = try systemAudioController.toggleMuted()
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     func chooseAllowedApplications() {
@@ -634,6 +646,9 @@ final class AppController: ObservableObject {
         }
         usage = usageStore.daily
         refreshWeatherIfNeeded(now: now)
+        if shieldVisible {
+            systemAudioMuted = (try? systemAudioController.isMuted()) ?? systemAudioMuted
+        }
         if lastHolidayRefreshCheck == nil || now.timeIntervalSince(lastHolidayRefreshCheck!) >= 3_600 {
             refreshHolidayCalendar(force: false)
         }

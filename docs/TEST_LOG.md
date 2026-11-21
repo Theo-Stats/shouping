@@ -2,7 +2,7 @@
 
 日期：2026-11-21
 
-环境：macOS 26.2，Apple Silicon，Swift 6.2.4，Command Line Tools macOSX.sdk 26.2
+环境：macOS 27.2.1，Apple Silicon，Xcode 27.2，Swift 6.4.2，macOS SDK 27.2
 
 ## 自动检查
 
@@ -17,6 +17,7 @@ swift run -c debug ShoupingChecks
 
 - Debug 构建通过。
 - Release 构建通过。
+- XCTest 5 项通过，0 失败。
 - arm64 构建通过。
 - x86_64 交叉构建通过。
 - 主应用和后台 agent 均生成 arm64 + x86_64 通用二进制。

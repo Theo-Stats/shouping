@@ -4,14 +4,18 @@
 
 - macOS 14 及以上。
 - Swift 6.2 或兼容版本。
-- 当前无完整 Xcode 时仍可构建 AppKit/SwiftUI 应用并运行 `ShoupingChecks`。
-- 若要运行 XCTest、归档 Xcode 工程或正式公证，需要安装完整 Xcode。
+- Xcode 27.2 位于 `/Volumes/kioxiaTC10/Applications/Xcode-27.2/Xcode.app`。
+- 构建脚本检测到该路径时会自动设置 `DEVELOPER_DIR`，不修改系统全局默认工具链。
+- 外接盘未挂载时，仍可回退到 Command Line Tools 构建应用和运行 `ShoupingChecks`。
+- Xcode 首次启动、必需组件和 macOS 27.2 SDK 已完成安装。
+- Xcode 的 Apple Accounts 页面尚未登录；创建 Apple Development 证书需要用户本人登录。
 
 ## 常用命令
 
 ```zsh
 # 构建化验程序
 swift run -c debug ShoupingChecks
+swift test
 
 # 构建 arm64 + x86_64 的 .app
 ./Scripts/build_app.sh
@@ -23,7 +27,7 @@ swift run -c debug ShoupingChecks
 ./Scripts/install_local.sh
 ```
 
-默认会构建通用二进制。若要缩短本机调试时间：
+默认会构建通用二进制。脚本优先使用外接盘中的完整 Xcode。若要缩短本机调试时间：
 
 ```zsh
 BUILD_UNIVERSAL=0 ./Scripts/build_app.sh

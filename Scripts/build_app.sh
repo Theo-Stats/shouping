@@ -5,6 +5,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build"
 APP_DIR="$BUILD_DIR/守屏.app"
 CONFIGURATION="${CONFIGURATION:-release}"
+EXTERNAL_XCODE="/Volumes/kioxiaTC10/Applications/Xcode-27.2/Xcode.app"
+if [[ -z "${DEVELOPER_DIR:-}" && -d "$EXTERNAL_XCODE/Contents/Developer" ]]; then
+  export DEVELOPER_DIR="$EXTERNAL_XCODE/Contents/Developer"
+fi
 
 cd "$ROOT"
 swift build -c "$CONFIGURATION" --product Shouping

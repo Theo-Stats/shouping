@@ -23,6 +23,7 @@ final class UsageStoreTests: XCTestCase {
         )
 
         store.add(seconds: 120, to: descriptor, now: firstDay)
+        store.persist()
         XCTAssertEqual(store.daily.applications[descriptor.bundleIdentifier]?.activeSeconds, 120)
 
         let reloaded = UsageStore(fileURL: url, calendar: calendar)

@@ -31,5 +31,10 @@ let package = Package(
             dependencies: ["ShoupingCore"],
             path: "Sources/ShoupingChecks"
         ),
+        .testTarget(
+            name: "ShoupingCoreTests",
+            dependencies: ["ShoupingCore"],
+            path: "Tests/ShoupingCoreTests"
+        ),
     ]
 )

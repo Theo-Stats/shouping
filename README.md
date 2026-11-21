@@ -55,11 +55,12 @@ swift run -c debug ShoupingChecks
 
 ## 已知边界
 
-- 当前本机只有 Command Line Tools，没有完整 Xcode，因此 XCTest 文件保留但未接入 SwiftPM。替代验收程序为 `ShoupingChecks`。
+- 完整 Xcode 27.2 已安装在外接盘，本项目构建脚本会自动使用它；macOS 27.2 SDK 已安装。
 - 强制键盘拦截的代码与 UI 已完成；但本地自签名构建无法取得 macOS TCC 对辅助功能事件过滤器的信任。应用会明确提示并自动降级为全屏遮挡。发布强制模式需要 Apple Development 或 Developer ID 签名后重新实测。
 - “系统设置里已勾选”不代表当前构建已经生效。权限页现在同时显示系统登记状态和实际 API 检测状态，并提供“实际测试”按钮。
 - 当前测试机只有单台内置显示器。代码按每块 `NSScreen` 建立独立窗口，最终发布前仍需在双屏和三屏真机上回归。
 - 当前 DMG 使用本地开发签名，不能直接作为面向公众的公证发行包。
+- 尚未登录 Apple Account，因此还没有 Apple Development 证书，强制键盘拦截仍需完成签名后再授权测试。
 
 ## 文档
 

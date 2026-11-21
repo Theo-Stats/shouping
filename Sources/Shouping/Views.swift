@@ -274,7 +274,7 @@ private struct RulesView: View {
                         get: { controller.configuration.appearance.style },
                         set: { style in
                             controller.mutateConfiguration { $0.appearance.style = style }
-                            if style == .clock, controller.configuration.appearance.weatherEnabled {
+                            if style != .focus, controller.configuration.appearance.weatherEnabled {
                                 controller.refreshWeather()
                             }
                         }
@@ -796,6 +796,8 @@ struct ShieldView: View {
             ZStack {
                 if controller.configuration.appearance.style == .clock {
                     clockContent
+                } else if controller.configuration.appearance.style == .flip {
+                    flipClockContent
                 } else {
                     LinearGradient(
                         colors: [Color(red: 0.04, green: 0.08, blue: 0.13), Color(red: 0.10, green: 0.12, blue: 0.18)],
@@ -874,8 +876,13 @@ struct ShieldView: View {
                             Button(skipButtonTitle) { controller.requestSkipAuthorization() }
                                 .buttonStyle(.bordered)
                         }
-                        Button("极简时钟") {
+                        Button("极简数字") {
                             controller.mutateConfiguration { $0.appearance.style = .clock }
+                            controller.refreshWeather()
+                        }
+                        .buttonStyle(.bordered)
+                        Button("翻页时钟") {
+                            controller.mutateConfiguration { $0.appearance.style = .flip }
                             controller.refreshWeather()
                         }
                         .buttonStyle(.bordered)
@@ -975,6 +982,84 @@ struct ShieldView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var flipClockContent: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 12) {
+                Spacer(minLength: 30)
+
+                GeometryReader { proxy in
+                    let cardWidth = min(proxy.size.width * 0.29, 390)
+                    let cardHeight = min(proxy.size.height * 0.68, 430)
+                    FlipClockDeck(cardWidth: cardWidth, cardHeight: cardHeight)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxHeight: 470)
+
+                Text(Date(), format: .dateTime.month(.wide).day().weekday(.wide))
+                    .font(.title3)
+                    .foregroundStyle(.white.opacity(0.56))
+
+                if controller.configuration.appearance.weatherEnabled {
+                    if let weather = controller.weather {
+                        HStack(spacing: 8) {
+                            Image(systemName: weather.symbolName)
+                            Text("\(weather.temperatureCelsius)°  \(weather.condition)")
+                            Text(weather.city).foregroundStyle(.white.opacity(0.45))
+                        }
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.78))
+                    } else {
+                        Text(controller.weatherStatusText)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.42))
+                    }
+                }
+
+                Spacer()
+
+                if !controller.configuration.allowedApplications.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(controller.configuration.allowedApplications.prefix(8)) { application in
+                            Button {
+                                controller.openApplication(application)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(nsImage: appIcon(for: application))
+                                        .resizable()
+                                        .frame(width: 20, height: 20)
+                                    Text(application.displayName)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    if controller.canPauseCurrentRestriction {
+                        Button("暂停…") { controller.requestPauseAuthorization() }
+                    }
+                    if controller.canSkipCurrentRestriction {
+                        Button(skipButtonTitle) { controller.requestSkipAuthorization() }
+                    }
+                    Button("极简数字") {
+                        controller.mutateConfiguration { $0.appearance.style = .clock }
+                    }
+                    Button("切换为专注背景") {
+                        controller.mutateConfiguration { $0.appearance.style = .focus }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .padding(.bottom, 36)
+            }
+            .padding(.horizontal, 40)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private var backgroundImage: NSImage? {
         guard let path = controller.configuration.appearance.customBackgroundPath else {
             return nil
@@ -994,6 +1079,104 @@ struct ShieldView: View {
         if controller.isPreviewing { return "结束预览" }
         if controller.activeRestriction?.reason == .quickFocus { return "结束本次专注" }
         return "跳过当前限制"
+    }
+}
+
+private struct FlipClockDeck: View {
+    let cardWidth: CGFloat
+    let cardHeight: CGFloat
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let components = Calendar.current.dateComponents([.hour, .minute], from: context.date)
+            let hour = String(format: "%02d", components.hour ?? 0)
+            let minute = String(format: "%02d", components.minute ?? 0)
+
+            HStack(spacing: 24) {
+                FlipClockCard(value: hour, width: cardWidth, height: cardHeight)
+                FlipClockCard(value: minute, width: cardWidth, height: cardHeight)
+            }
+        }
+    }
+}
+
+private struct FlipClockCard: View {
+    let value: String
+    let width: CGFloat
+    let height: CGFloat
+
+    @State private var displayedValue: String
+    @State private var flipAngle: Double = 0
+    @State private var isAnimating = false
+
+    init(value: String, width: CGFloat, height: CGFloat) {
+        self.value = value
+        self.width = width
+        self.height = height
+        _displayedValue = State(initialValue: value)
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.10, green: 0.11, blue: 0.12),
+                            Color(red: 0.035, green: 0.04, blue: 0.045),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+
+            Text(displayedValue)
+                .font(.system(size: height * 0.59, weight: .black, design: .rounded).monospacedDigit())
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.55), radius: 8, y: 5)
+
+            Rectangle()
+                .fill(Color.black.opacity(0.88))
+                .frame(height: 5)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(Color.white.opacity(0.04)).frame(height: 1)
+                }
+
+            HStack {
+                Circle().fill(Color.black).frame(width: 9, height: 9)
+                Spacer()
+                Circle().fill(Color.black).frame(width: 9, height: 9)
+            }
+            .padding(.horizontal, -4)
+        }
+        .frame(width: width, height: height)
+        .rotation3DEffect(
+            .degrees(flipAngle),
+            axis: (x: 1, y: 0, z: 0),
+            anchor: .center,
+            perspective: 0.72
+        )
+        .onChange(of: value) { _, newValue in
+            guard !isAnimating, newValue != displayedValue else { return }
+            isAnimating = true
+            withAnimation(.easeIn(duration: 0.18)) {
+                flipAngle = 88
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                displayedValue = newValue
+                flipAngle = -88
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                    flipAngle = 0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
+                    isAnimating = false
+                }
+            }
+        }
     }
 }
 

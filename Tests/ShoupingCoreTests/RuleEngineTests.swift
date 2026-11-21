@@ -229,4 +229,17 @@ final class RuleEngineTests: XCTestCase {
         XCTAssertEqual(configuration.schedule.protectionLeadMinutes, 15)
         XCTAssertTrue(configuration.hideApplicationInFinder)
     }
+
+    func testFlipClockAppearanceRoundTrips() throws {
+        let appearance = AppearanceSettings(
+            style: .flip,
+            customBackgroundPath: nil,
+            weatherEnabled: true,
+            weatherCity: "上海"
+        )
+        let data = try JSONEncoder().encode(appearance)
+        let decoded = try JSONDecoder().decode(AppearanceSettings.self, from: data)
+
+        XCTAssertEqual(decoded, appearance)
+    }
 }

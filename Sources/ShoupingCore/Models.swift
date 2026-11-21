@@ -49,13 +49,15 @@ public enum InterventionStrength: String, Codable, CaseIterable, Identifiable, S
 public enum ShieldStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     case focus
     case clock
+    case flip
 
     public var id: String { rawValue }
 
     public var title: String {
         switch self {
         case .focus: return "专注背景"
-        case .clock: return "极简时钟"
+        case .clock: return "极简数字"
+        case .flip: return "翻页时钟"
         }
     }
 }

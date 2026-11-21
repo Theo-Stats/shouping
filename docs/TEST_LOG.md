@@ -18,6 +18,7 @@ swift run -c debug ShoupingChecks
 - Debug 构建通过。
 - Release 构建通过。
 - XCTest 6 项通过，0 失败。
+- 删除全部 iOS Simulator 运行库后，macOS 项目的 XCTest 仍为 6 项通过。
 - arm64 构建通过。
 - x86_64 交叉构建通过。
 - 主应用和后台 agent 均生成 arm64 + x86_64 通用二进制。

@@ -9,6 +9,8 @@
 - 外接盘未挂载时，仍可回退到 Command Line Tools 构建应用和运行 `ShoupingChecks`。
 - Xcode 首次启动、必需组件和 macOS 27.2 SDK 已完成安装。
 - Apple Account 已登录，Personal Team 的 Apple Development 证书已经创建并用于当前构建。
+- iOS Simulator 运行库不是 macOS 客户端构建所需，当前已删除，释放约 15.5 GB 系统盘空间。
+- Xcode 下载器可以把安装镜像导出到外接盘，但使用中的模拟器运行库仍要导入系统安全存储区，因此不能靠迁移运行库长期释放系统盘。
 
 ## 常用命令
 

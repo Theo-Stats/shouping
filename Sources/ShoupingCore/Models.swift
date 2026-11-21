@@ -236,11 +236,38 @@ public struct CycleSettings: Codable, Equatable, Sendable {
     public var isEnabled: Bool
     public var useMinutes: Int
     public var restMinutes: Int
+    public var reminderEnabled: Bool
+    public var reminderMinutes: Int
 
-    public init(isEnabled: Bool = false, useMinutes: Int = 30, restMinutes: Int = 5) {
+    public init(
+        isEnabled: Bool = false,
+        useMinutes: Int = 30,
+        restMinutes: Int = 5,
+        reminderEnabled: Bool = false,
+        reminderMinutes: Int = 45
+    ) {
         self.isEnabled = isEnabled
         self.useMinutes = useMinutes
         self.restMinutes = restMinutes
+        self.reminderEnabled = reminderEnabled
+        self.reminderMinutes = reminderMinutes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled
+        case useMinutes
+        case restMinutes
+        case reminderEnabled
+        case reminderMinutes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
+        useMinutes = try container.decodeIfPresent(Int.self, forKey: .useMinutes) ?? 30
+        restMinutes = try container.decodeIfPresent(Int.self, forKey: .restMinutes) ?? 5
+        reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
+        reminderMinutes = try container.decodeIfPresent(Int.self, forKey: .reminderMinutes) ?? 45
     }
 }
 

@@ -424,7 +424,7 @@ private struct SettingsView: View {
                     if selectedSection == .cycle {
                         SettingsCard(.cycle) {
                 Toggle(
-                    "限制连续使用",
+                    "强制休息",
                     isOn: Binding(
                         get: { controller.configuration.cycle.isEnabled },
                         set: { value in controller.mutateConfiguration { $0.cycle.isEnabled = value } }
@@ -451,6 +451,30 @@ private struct SettingsView: View {
                 Text("连续使用规则作用于“计入每日额度的应用”。离开这些应用会中断连续计时。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Divider()
+
+                Toggle(
+                    "连续使用与提醒",
+                    isOn: Binding(
+                        get: { controller.configuration.cycle.reminderEnabled },
+                        set: { value in controller.setContinuousReminderEnabled(value) }
+                    )
+                )
+                if controller.configuration.cycle.reminderEnabled {
+                    Stepper(
+                        "连续使用 \(controller.configuration.cycle.reminderMinutes) 分钟后提醒",
+                        value: Binding(
+                            get: { controller.configuration.cycle.reminderMinutes },
+                            set: { value in controller.mutateConfiguration { $0.cycle.reminderMinutes = value } }
+                        ),
+                        in: 5...180,
+                        step: 5
+                    )
+                    Text("达到设定时间后会弹出休息提醒。选择休息时可以设置 30 分钟、1 小时、2 小时或自定义时长。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                         }
                         .id(SettingsSection.cycle.id)
                     }

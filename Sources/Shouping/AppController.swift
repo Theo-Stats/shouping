@@ -39,6 +39,7 @@ final class AppController: ObservableObject {
     @Published private(set) var isRefreshingWeather = false
     @Published private(set) var weatherLoadFailed = false
     @Published private(set) var weatherHiddenForCurrentShield = false
+    @Published private(set) var cycleReminderPromptVisible = false
     @Published private(set) var holidayStatusText = "工作日历使用本地星期规则"
 
     var onStatusChange: (() -> Void)?
@@ -55,6 +56,7 @@ final class AppController: ObservableObject {
         self?.requestPauseAuthorization()
     }
     private lazy var authorizationWindowController = AuthorizationWindowController(controller: self)
+    private lazy var cycleReminderWindowController = CycleReminderWindowController(controller: self)
 
     private var tickTimer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -66,6 +68,8 @@ final class AppController: ObservableObject {
     private var lastHolidayRefreshCheck: Date?
     private var previewEnd: Date?
     private var cycleTracker = CycleTracker()
+    private var cycleReminderTracker = ContinuousUseReminderTracker()
+    private var cycleReminderRestEnd: Date?
 
     init() {
         configurationStore = ConfigurationStore(fileURL: AppSupportPaths.configurationURL)
@@ -106,6 +110,7 @@ final class AppController: ObservableObject {
         inputGate.stop()
         overlayController.hide()
         authorizationWindowController.hide()
+        cycleReminderWindowController.hide()
 
         let center = NSWorkspace.shared.notificationCenter
         workspaceObservers.forEach(center.removeObserver)
@@ -574,6 +579,29 @@ final class AppController: ObservableObject {
         weatherHiddenForCurrentShield = true
     }
 
+    func setContinuousReminderEnabled(_ enabled: Bool) {
+        mutateConfiguration { $0.cycle.reminderEnabled = enabled }
+        if !enabled {
+            declineCycleReminder()
+        }
+    }
+
+    func declineCycleReminder() {
+        cycleReminderTracker.resolvePrompt(resetTimer: true)
+        cycleReminderPromptVisible = false
+        cycleReminderWindowController.hide()
+        tick()
+    }
+
+    func startCycleReminderRest(minutes: Int) {
+        let duration = min(max(minutes, 1), 24 * 60)
+        cycleReminderTracker.resolvePrompt(resetTimer: true)
+        cycleReminderRestEnd = Date().addingTimeInterval(TimeInterval(duration * 60))
+        cycleReminderPromptVisible = false
+        cycleReminderWindowController.hide()
+        tick()
+    }
+
     func clearError() {
         lastError = nil
     }
@@ -711,6 +739,20 @@ final class AppController: ObservableObject {
             next = ActiveRestriction(
                 reason: .cycleRest,
                 endDate: cycleRestEnd,
+                blockedBundleIdentifiers: configuration.limitedBundleIdentifiers,
+                allowsOnlySelectedApplications: false
+            )
+        }
+        if let cycleReminderRestEnd,
+           cycleReminderRestEnd <= now {
+            self.cycleReminderRestEnd = nil
+            cycleReminderTracker.reset()
+        } else if next == nil,
+                  let cycleReminderRestEnd,
+                  cycleReminderRestEnd > now {
+            next = ActiveRestriction(
+                reason: .cycleRest,
+                endDate: cycleReminderRestEnd,
                 blockedBundleIdentifiers: configuration.limitedBundleIdentifiers,
                 allowsOnlySelectedApplications: false
             )
@@ -940,6 +982,20 @@ final class AppController: ObservableObject {
             elapsed: elapsed,
             now: Date()
         )
+        if cycleTracker.restEnd != nil {
+            cycleReminderTracker.reset()
+            return
+        }
+        let shouldPrompt = cycleReminderTracker.update(
+            settings: configuration.cycle,
+            isLimitedUse: isLimitedUse && !shieldVisible,
+            isUserActive: isUserActive,
+            elapsed: elapsed
+        )
+        if shouldPrompt {
+            cycleReminderPromptVisible = true
+            cycleReminderWindowController.show(useMinutes: configuration.cycle.reminderMinutes)
+        }
     }
 
     private var underlyingRestriction: ActiveRestriction? {

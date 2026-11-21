@@ -150,7 +150,7 @@ private struct DashboardView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label("恢复与绕过边界", systemImage: "arrow.uturn.backward.circle")
                     .font(.headline)
-                Text("暂停 5 分钟会解除遮罩和键盘拦截，但不会结束当前专注承诺；开启后台恢复时，后台助手会继续保留守屏。普通 Mac 应用无法可靠阻止管理员删除应用、清空数据或使用“强制退出”，这些操作会直接显示为可见绕过。")
+                Text("暂停 5 分钟会解除遮罩和键盘拦截，但不会结束当前专注承诺；开启后台恢复时，后台助手会继续保留守屏。强制模式可用 Control + Command + U 临时解锁。普通 Mac 应用无法可靠阻止管理员删除应用、清空数据或使用“强制退出”，这些操作会直接显示为可见绕过。")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -724,7 +724,7 @@ struct ShieldView: View {
                             Text(controller.inputGateRunning ? "键盘拦截已开启" : "键盘拦截不可用，当前仍受全屏遮挡保护")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(controller.inputGateRunning ? Color.teal.opacity(0.8) : Color.orange.opacity(0.85))
-                            Text("紧急快捷键：Control + Option + Command + U")
+                            Text("紧急快捷键：Control + Command + U")
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.white.opacity(0.42))
                         }

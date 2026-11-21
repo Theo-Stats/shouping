@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import ShoupingCore
 
 enum InputGateError: LocalizedError {
     case permissionDenied
@@ -15,8 +16,6 @@ enum InputGateError: LocalizedError {
     }
 }
 
-private let emergencyKeyCode: Int64 = 32 // U
-
 private let inputGateCallback: CGEventTapCallBack = { _, type, event, userInfo in
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         return Unmanaged.passUnretained(event)
@@ -29,10 +28,11 @@ private let inputGateCallback: CGEventTapCallBack = { _, type, event, userInfo i
     let gate = Unmanaged<InputGate>.fromOpaque(userInfo).takeUnretainedValue()
     let flags = event.flags
     let isEmergency = type == .keyDown
-        && flags.contains(.maskControl)
-        && flags.contains(.maskAlternate)
-        && flags.contains(.maskCommand)
-        && event.getIntegerValueField(.keyboardEventKeycode) == emergencyKeyCode
+        && EmergencyShortcut.matches(
+            control: flags.contains(.maskControl),
+            command: flags.contains(.maskCommand),
+            keyCode: event.getIntegerValueField(.keyboardEventKeycode)
+        )
 
     if isEmergency {
         gate.requestEmergencyUnlock()

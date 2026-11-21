@@ -44,6 +44,8 @@ if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
   SIGN_IDENTITY="$DEVELOPER_ID_APPLICATION"
 elif [[ -n "${LOCAL_SIGNING_IDENTITY:-}" ]]; then
   SIGN_IDENTITY="$LOCAL_SIGNING_IDENTITY"
+elif security find-identity -v -p codesigning 2>/dev/null | grep -q 'Apple Development:'; then
+  SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development:.*\)"/\1/p' | head -1)"
 elif security find-identity -v -p codesigning 2>/dev/null | grep -q '"Shouping Local Development"'; then
   SIGN_IDENTITY="Shouping Local Development"
 else

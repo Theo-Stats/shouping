@@ -17,11 +17,11 @@ swift run -c debug ShoupingChecks
 
 - Debug 构建通过。
 - Release 构建通过。
-- XCTest 5 项通过，0 失败。
+- XCTest 6 项通过，0 失败。
 - arm64 构建通过。
 - x86_64 交叉构建通过。
 - 主应用和后台 agent 均生成 arm64 + x86_64 通用二进制。
-- `ShoupingChecks: 12 checks passed`。
+- `ShoupingChecks: 14 checks passed`。
 - 检查项覆盖普通日程、跨午夜日程、临时解锁、每日额度、应用级筛选、使用数据持久化和跨日重置。
 
 ## 界面验证
@@ -58,21 +58,23 @@ swift run -c debug ShoupingChecks
 ## 输入拦截验证
 
 - 强制模式 UI 可以启用并显示实际状态。
-- 权限不可用时，事件过滤器创建失败，界面显示“键盘拦截不可用，当前仍受全屏遮挡保护”。
-- 应用不会因为权限失败而阻断退出；应急按钮仍可使用。
-- 当前自签名构建在系统设置中可以被勾选，但 `AXIsProcessTrusted()` 和 `CGPreflightListenEventAccess()` 仍返回 false。
-- 结论：事件 tap 的最后验收必须使用 Apple Development 或 Developer ID 证书重新签名，在真实 TCC 授权后完成。
+- 使用 Apple Development 证书重新签名并重置旧 TCC 记录后，辅助功能和输入监控均成功授权。
+- 权限页显示“两项权限已生效”。
+- “实际测试”成功创建并销毁键盘事件过滤器。
+- 强制专注屏显示“键盘拦截已开启”。
+- 由 Apple Development 签名升级构建到 0.1.2 后，TCC 权限仍然保持，无需重新授权。
+- 错误或缺失权限时会安全降级为全屏遮挡，鼠标仍可操作应急按钮。
+- `Control + Command + U` 的按键匹配逻辑已加入单元测试；当前自动化输入注入未触发系统快捷键路径，正式触控板/键盘需在实机回归。
 
 ## 发行包验证
 
 - `codesign --verify --deep --strict` 通过。
 - DMG 中应用包含主程序、后台 agent、LaunchAgent plist 和 AppIcon。
 - `hdiutil verify` 返回 checksum valid。
-- 当前签名身份为本地自签名，正式对外分发前必须替换为 Developer ID 并完成公证。
+- 当前主应用和 helper 均由 Apple Development、WWDR G3 和 Apple Root CA 链签名。
+- Apple Development 适合本机测试；正式对外分发前必须替换为 Developer ID并完成公证。
 
 ## 尚未完成
 
 - 双屏和三屏真机矩阵。
-- Apple Development/Developer ID 下的 TCC 键盘拦截实测。
-- 完整 Xcode XCTest。
 - 正式公证和 Gatekeeper 验证。

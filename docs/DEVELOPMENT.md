@@ -8,7 +8,7 @@
 - 构建脚本检测到该路径时会自动设置 `DEVELOPER_DIR`，不修改系统全局默认工具链。
 - 外接盘未挂载时，仍可回退到 Command Line Tools 构建应用和运行 `ShoupingChecks`。
 - Xcode 首次启动、必需组件和 macOS 27.2 SDK 已完成安装。
-- Xcode 的 Apple Accounts 页面尚未登录；创建 Apple Development 证书需要用户本人登录。
+- Apple Account 已登录，Personal Team 的 Apple Development 证书已经创建并用于当前构建。
 
 ## 常用命令
 
@@ -52,11 +52,15 @@ LOCAL_SIGNING_KEYCHAIN="$HOME/Library/Keychains/ShoupingDev.keychain-db" \
 
 如果默认钥匙串搜索列表中存在名为 `Shouping Local Development` 的身份，构建脚本会自动使用它。
 
-本地自签名足以保持普通应用签名一致，但不能替代 Apple 开发证书通过所有 TCC 检查。尤其要验证：
+若本机存在 Apple Development 身份，构建脚本会自动选择它。Apple Development 签名已用于验证：
 
 - `AXIsProcessTrusted()`
 - `CGPreflightListenEventAccess()`
 - 键盘事件 tap 的创建和销毁
+
+Apple Development 适合本机开发和个人签名。公开分发仍需 Developer ID 与公证。
+
+当前机器已安装 Apple WWDR G3 中间证书。若新机器上 Xcode 显示证书存在但 `security find-identity` 返回 0，应先检查该证书链是否完整。
 
 ## 正式发布清单
 
@@ -67,8 +71,9 @@ LOCAL_SIGNING_KEYCHAIN="$HOME/Library/Keychains/ShoupingDev.keychain-db" \
 5. 在至少 macOS 14、当前稳定版和 macOS 26 上回归。
 6. 在单屏、双屏、三屏、合盖唤醒和显示器热插拔上回归。
 7. 撤回辅助功能权限，确认自动降级到标准遮挡。
-8. 关闭主应用，确认规则有效时 LaunchAgent 能恢复。
-9. 关闭后台恢复并卸载，确认 Login Item 和 LaunchAgent 均被移除。
+8. 在强制模式中验证 `Control + Command + U` 能结束键盘拦截并临时解锁。
+9. 关闭主应用，确认规则有效时 LaunchAgent 能恢复。
+10. 关闭后台恢复并卸载，确认 Login Item 和 LaunchAgent 均被移除。
 
 ## 安全约束
 

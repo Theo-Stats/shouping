@@ -159,4 +159,13 @@ cycle.update(
 try expect(cycle.restEnd == nil, "休息结束后没有清除休息状态")
 try expect(cycle.continuousSeconds == 0, "休息结束后没有重置连续使用计时")
 
-print("ShoupingChecks: 12 checks passed")
+try expect(
+    EmergencyShortcut.matches(control: true, command: true, keyCode: 32),
+    "紧急解锁快捷键匹配失败"
+)
+try expect(
+    !EmergencyShortcut.matches(control: false, command: true, keyCode: 32),
+    "紧急解锁快捷键缺少 Control 仍然匹配"
+)
+
+print("ShoupingChecks: 14 checks passed")

@@ -102,4 +102,11 @@ final class RuleEngineTests: XCTestCase {
             )
         )
     }
+
+    func testEmergencyShortcutRequiresControlCommandAndU() {
+        XCTAssertTrue(EmergencyShortcut.matches(control: true, command: true, keyCode: 32))
+        XCTAssertFalse(EmergencyShortcut.matches(control: false, command: true, keyCode: 32))
+        XCTAssertFalse(EmergencyShortcut.matches(control: true, command: false, keyCode: 32))
+        XCTAssertFalse(EmergencyShortcut.matches(control: true, command: true, keyCode: 31))
+    }
 }

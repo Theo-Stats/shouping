@@ -48,6 +48,65 @@ final class RuleEngineTests: XCTestCase {
         XCTAssertTrue(engine.scheduleIsActive(schedule, now: tuesdayAtSix, calendar: calendar))
     }
 
+    func testSchedulePreLockProtectsSystemManagementApplications() throws {
+        let engine = RuleEngine()
+        let schedule = ScheduleSettings(
+            isEnabled: true,
+            activeWeekdays: [2],
+            startMinutes: 17 * 60,
+            endMinutes: 18 * 60,
+            protectionLeadMinutes: 15
+        )
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 11,
+            day: 23,
+            hour: 16,
+            minute: 50
+        )))
+        let configuration = AppConfiguration(schedule: schedule)
+        let restriction = engine.activeRestriction(
+            configuration: configuration,
+            usage: DailyUsage(dayKey: "2026-11-23"),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(restriction?.reason, .preLockGuard)
+        XCTAssertTrue(restriction?.blockedBundleIdentifiers.contains("com.apple.finder") == true)
+        XCTAssertEqual(
+            restriction?.endDate,
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 23, hour: 17))
+        )
+    }
+
+    func testSchedulePreLockDoesNotStartBeforeLeadWindow() throws {
+        let engine = RuleEngine()
+        let schedule = ScheduleSettings(
+            isEnabled: true,
+            activeWeekdays: [2],
+            startMinutes: 17 * 60,
+            endMinutes: 18 * 60,
+            protectionLeadMinutes: 15
+        )
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 11,
+            day: 23,
+            hour: 16,
+            minute: 40
+        )))
+
+        XCTAssertNil(
+            engine.activeRestriction(
+                configuration: AppConfiguration(schedule: schedule),
+                usage: DailyUsage(dayKey: "2026-11-23"),
+                now: now,
+                calendar: calendar
+            )
+        )
+    }
+
     func testTemporaryUnlockSuppressesAllRestrictions() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let engine = RuleEngine()

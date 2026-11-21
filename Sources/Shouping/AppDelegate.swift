@@ -17,7 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openDashboard: { [weak self] in self?.showMainWindow() }
         )
 
-        if !ProcessInfo.processInfo.arguments.contains("--background") {
+        if !ProcessInfo.processInfo.arguments.contains("--background"),
+           controller.activeRestriction == nil {
             showMainWindow()
         }
     }

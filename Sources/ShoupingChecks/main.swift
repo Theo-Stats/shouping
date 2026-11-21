@@ -168,4 +168,24 @@ try expect(
     "紧急解锁快捷键缺少 Control 仍然匹配"
 )
 
-print("ShoupingChecks: 14 checks passed")
+let preLockSchedule = ScheduleSettings(
+    isEnabled: true,
+    activeWeekdays: [2],
+    startMinutes: 17 * 60,
+    endMinutes: 18 * 60,
+    protectionLeadMinutes: 15
+)
+let preLockNow = date(2026, 11, 23, 16, 50)
+let preLock = engine.activeRestriction(
+    configuration: AppConfiguration(schedule: preLockSchedule),
+    usage: DailyUsage(dayKey: "2026-11-23"),
+    now: preLockNow,
+    calendar: calendar
+)
+try expect(preLock?.reason == .preLockGuard, "计划开始前的保护期没有触发")
+try expect(
+    preLock?.blockedBundleIdentifiers.contains("com.apple.finder") == true,
+    "保护期没有覆盖 Finder"
+)
+
+print("ShoupingChecks: 16 checks passed")

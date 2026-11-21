@@ -1,6 +1,17 @@
 import Foundation
 
 public struct RuleEngine: Sendable {
+    public static let protectedSystemManagementApplications: Set<String> = [
+        "com.apple.finder",
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.Warp-Stable",
+        "com.apple.ActivityMonitor",
+        "com.apple.systempreferences",
+        "com.apple.ScriptEditor2",
+        "com.apple.shortcuts",
+    ]
+
     public init() {}
 
     public func activeRestriction(
@@ -55,6 +66,54 @@ public struct RuleEngine: Sendable {
             }
         }
 
+        if schedulePreLockIsActive(configuration.schedule, now: now, calendar: calendar),
+           let scheduleStart = scheduleStartDate(configuration.schedule, now: now, calendar: calendar) {
+            return ActiveRestriction(
+                reason: .preLockGuard,
+                endDate: scheduleStart,
+                blockedBundleIdentifiers: Self.protectedSystemManagementApplications,
+                allowsOnlySelectedApplications: false
+            )
+        }
+
+        return nil
+    }
+
+    public func schedulePreLockIsActive(
+        _ schedule: ScheduleSettings,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard schedule.isEnabled,
+              schedule.protectionLeadMinutes > 0,
+              !scheduleIsActive(schedule, now: now, calendar: calendar),
+              let start = scheduleStartDate(schedule, now: now, calendar: calendar) else {
+            return false
+        }
+        let lead = TimeInterval(schedule.protectionLeadMinutes * 60)
+        let remaining = start.timeIntervalSince(now)
+        return remaining > 0 && remaining <= lead
+    }
+
+    public func scheduleStartDate(
+        _ schedule: ScheduleSettings,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Date? {
+        guard schedule.isEnabled, !schedule.activeWeekdays.isEmpty else { return nil }
+
+        for dayOffset in 0...7 {
+            guard let day = calendar.date(
+                byAdding: .day,
+                value: dayOffset,
+                to: calendar.startOfDay(for: now)
+            ), schedule.activeWeekdays.contains(calendar.component(.weekday, from: day)),
+                let start = calendar.date(byAdding: .minute, value: schedule.startMinutes, to: day),
+                start > now else {
+                continue
+            }
+            return start
+        }
         return nil
     }
 

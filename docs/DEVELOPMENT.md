@@ -9,6 +9,7 @@
 - 外接盘未挂载时，仍可回退到 Command Line Tools 构建应用和运行 `ShoupingChecks`。
 - Xcode 首次启动、必需组件和 macOS 27.2 SDK 已完成安装。
 - Apple Account 已登录，Personal Team 的 Apple Development 证书已经创建并用于当前构建。
+- 开发安装路径为 `/Applications/守屏系统组件/守屏.app`；隐藏属性放在父目录，应用签名保持完整。
 - iOS Simulator 运行库不是 macOS 客户端构建所需，当前已删除，释放约 15.5 GB 系统盘空间。
 - Xcode 下载器可以把安装镜像导出到外接盘，但使用中的模拟器运行库仍要导入系统安全存储区，因此不能靠迁移运行库长期释放系统盘。
 
@@ -76,8 +77,9 @@ Apple Development 适合本机开发和个人签名。公开分发仍需 Develop
 8. 在强制模式中验证 `Control + Command + U` 能结束键盘拦截并临时解锁。
 9. 分别关闭暂停和跳过开关，确认对应按钮、菜单及快捷键均无法绕过限制。
 10. 清除退出密码并确认快速专注无法启动；设置密码后验证暂停秒、分钟、小时和跳过流程。
-11. 关闭主应用，确认规则有效时 LaunchAgent 能恢复。
-12. 关闭后台恢复并卸载，确认 Login Item 和 LaunchAgent 均被移除。
+11. 设置提前保护期，确认 Finder、终端和系统设置会显示遮罩，普通应用不受影响。
+12. 关闭主应用，确认规则有效时 LaunchAgent 能恢复。
+13. 关闭后台恢复并卸载，确认 Login Item 和 LaunchAgent 均被移除。
 
 ## 安全约束
 

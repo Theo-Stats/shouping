@@ -5,6 +5,7 @@ public enum LockReason: String, Codable, CaseIterable, Identifiable, Sendable {
     case schedule
     case dailyLimit
     case cycleRest
+    case preLockGuard
 
     public var id: String { rawValue }
 
@@ -14,6 +15,7 @@ public enum LockReason: String, Codable, CaseIterable, Identifiable, Sendable {
         case .schedule: return "现在是用机限制时段"
         case .dailyLimit: return "今天的使用额度已用完"
         case .cycleRest: return "该休息一下了"
+        case .preLockGuard: return "专注即将开始"
         }
     }
 
@@ -23,6 +25,7 @@ public enum LockReason: String, Codable, CaseIterable, Identifiable, Sendable {
         case .schedule: return "现在休息一下，留些时间给真正重要的事情。"
         case .dailyLimit: return "今天的娱乐额度已经结束，明天再继续。"
         case .cycleRest: return "离开屏幕几分钟，让注意力恢复一下。"
+        case .preLockGuard: return "现在不要卸载或修改守屏，马上进入专注时段。"
         }
     }
 }
@@ -71,17 +74,37 @@ public struct ScheduleSettings: Codable, Equatable, Sendable {
     public var activeWeekdays: Set<Int>
     public var startMinutes: Int
     public var endMinutes: Int
+    public var protectionLeadMinutes: Int
 
     public init(
         isEnabled: Bool = false,
         activeWeekdays: Set<Int> = Set(2...6),
         startMinutes: Int = 9 * 60,
-        endMinutes: Int = 11 * 60 + 30
+        endMinutes: Int = 11 * 60 + 30,
+        protectionLeadMinutes: Int = 15
     ) {
         self.isEnabled = isEnabled
         self.activeWeekdays = activeWeekdays
         self.startMinutes = startMinutes
         self.endMinutes = endMinutes
+        self.protectionLeadMinutes = protectionLeadMinutes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled
+        case activeWeekdays
+        case startMinutes
+        case endMinutes
+        case protectionLeadMinutes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
+        activeWeekdays = try container.decodeIfPresent(Set<Int>.self, forKey: .activeWeekdays) ?? Set(2...6)
+        startMinutes = try container.decodeIfPresent(Int.self, forKey: .startMinutes) ?? 9 * 60
+        endMinutes = try container.decodeIfPresent(Int.self, forKey: .endMinutes) ?? 11 * 60 + 30
+        protectionLeadMinutes = try container.decodeIfPresent(Int.self, forKey: .protectionLeadMinutes) ?? 15
     }
 }
 
@@ -153,6 +176,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var skippedRestrictionEndUnixTime: TimeInterval?
     public var launchAtLogin: Bool
     public var backgroundRecovery: Bool
+    public var hideApplicationInFinder: Bool
 
     public init(
         focus: FocusSettings = FocusSettings(),
@@ -165,7 +189,8 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         temporaryUnlockEndUnixTime: TimeInterval? = nil,
         skippedRestrictionEndUnixTime: TimeInterval? = nil,
         launchAtLogin: Bool = false,
-        backgroundRecovery: Bool = false
+        backgroundRecovery: Bool = false,
+        hideApplicationInFinder: Bool = true
     ) {
         self.focus = focus
         self.schedule = schedule
@@ -178,6 +203,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.skippedRestrictionEndUnixTime = skippedRestrictionEndUnixTime
         self.launchAtLogin = launchAtLogin
         self.backgroundRecovery = backgroundRecovery
+        self.hideApplicationInFinder = hideApplicationInFinder
     }
 
     public var allowedBundleIdentifiers: Set<String> {
@@ -200,6 +226,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         case skippedRestrictionEndUnixTime
         case launchAtLogin
         case backgroundRecovery
+        case hideApplicationInFinder
     }
 
     public init(from decoder: Decoder) throws {
@@ -215,6 +242,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         skippedRestrictionEndUnixTime = try container.decodeIfPresent(TimeInterval.self, forKey: .skippedRestrictionEndUnixTime)
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         backgroundRecovery = try container.decodeIfPresent(Bool.self, forKey: .backgroundRecovery) ?? false
+        hideApplicationInFinder = try container.decodeIfPresent(Bool.self, forKey: .hideApplicationInFinder) ?? true
     }
 }
 

@@ -8,6 +8,7 @@ final class MenuBarController: NSObject {
     private let statusMenuItem = NSMenuItem()
     private let pauseMenuItem = NSMenuItem()
     private let skipMenuItem = NSMenuItem()
+    private let openMenuItem = NSMenuItem()
 
     init(controller: AppController, openDashboard: @escaping () -> Void) {
         self.controller = controller
@@ -40,7 +41,8 @@ final class MenuBarController: NSObject {
         menu.addItem(pauseMenuItem)
         menu.addItem(skipMenuItem)
         menu.addItem(.separator())
-        menu.addItem(item(title: "打开守屏…", action: #selector(showDashboard)))
+        configure(openMenuItem, title: "打开守屏…", action: #selector(showDashboard))
+        menu.addItem(openMenuItem)
         menu.addItem(item(title: "退出守屏", action: #selector(quitApplication)))
 
         statusItem.menu = menu
@@ -75,6 +77,7 @@ final class MenuBarController: NSObject {
         statusItem.button?.toolTip = controller.statusText
         pauseMenuItem.isEnabled = controller.canPauseCurrentRestriction
         skipMenuItem.isEnabled = controller.canSkipCurrentRestriction
+        openMenuItem.isEnabled = controller.activeRestriction == nil
     }
 
     @objc private func startFifteenMinutes() { controller.startQuickFocus(minutes: 15) }

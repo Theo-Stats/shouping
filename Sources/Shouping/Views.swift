@@ -319,6 +319,18 @@ private struct RulesView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Stepper(
+                    "提前保护：\(controller.configuration.schedule.protectionLeadMinutes) 分钟",
+                    value: Binding(
+                        get: { controller.configuration.schedule.protectionLeadMinutes },
+                        set: { value in controller.mutateConfiguration { $0.schedule.protectionLeadMinutes = value } }
+                    ),
+                    in: 0...120,
+                    step: 5
+                )
+                Text("保护期内，Finder、终端、活动监视器和系统设置等高风险工具会显示遮罩；普通工作应用不受影响。设为 0 可关闭。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("每日额度") {
@@ -390,6 +402,16 @@ private struct RulesView: View {
                     )
                 )
                 Text("启用后，规则仍生效而主程序被关闭时，系统后台助手会重新启动守屏。可在同一位置关闭。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(
+                    "在 Finder 中隐藏应用",
+                    isOn: Binding(
+                        get: { controller.configuration.hideApplicationInFinder },
+                        set: { controller.setHideApplicationInFinder($0) }
+                    )
+                )
+                Text("隐藏后在 Finder 的“应用程序”中普通浏览不会看到守屏，但菜单栏入口和登录自动启动仍然有效。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 GroupBox {

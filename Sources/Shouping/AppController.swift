@@ -64,6 +64,7 @@ final class AppController: ObservableObject {
     func start() {
         refreshPermissions()
         reconcileServicesForCurrentBuild()
+        applyFinderVisibility(hidden: configuration.hideApplicationInFinder)
         installWorkspaceObservers()
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -403,6 +404,14 @@ final class AppController: ObservableObject {
         }
     }
 
+    func setHideApplicationInFinder(_ hidden: Bool) {
+        if applyFinderVisibility(hidden: hidden) {
+            mutateConfiguration { $0.hideApplicationInFinder = hidden }
+        } else {
+            lastError = "无法修改 Finder 隐藏状态。请确认守屏已安装在“应用程序”文件夹。"
+        }
+    }
+
     func requestQuit() {
         guard canTerminateApplication else {
             lastError = "当前专注承诺仍在生效。可在允许时暂停或跳过；后台恢复开启时，即使关闭主程序也会自动拉起。"
@@ -594,7 +603,12 @@ final class AppController: ObservableObject {
                 statusText = "守屏待命"
             }
         } else if previous == nil || previous?.reason != next?.reason {
-            showShield()
+            if next?.reason == .preLockGuard {
+                NSApp.windows.first { $0.title == "守屏" }?.orderOut(nil)
+                frontmostApplicationDidChange()
+            } else {
+                showShield()
+            }
             statusText = "\(next?.reason.title ?? "专注") · \(remainingText)"
         } else if !shieldVisible {
             statusText = "\(next?.reason.title ?? "专注") · 可使用允许的应用"
@@ -626,6 +640,28 @@ final class AppController: ObservableObject {
         }
     }
 
+    @discardableResult
+    private func applyFinderVisibility(hidden: Bool) -> Bool {
+        let bundleURL = Bundle.main.bundleURL
+        let containerURL = bundleURL.deletingLastPathComponent()
+        guard bundleURL.pathExtension == "app",
+              bundleURL.path.hasPrefix("/Applications/"),
+              containerURL.lastPathComponent == "守屏系统组件" else {
+            return false
+        }
+
+        do {
+            var target = containerURL
+            var values = URLResourceValues()
+            values.isHidden = hidden
+            try target.setResourceValues(values)
+            return true
+        } catch {
+            NSLog("Shouping Finder visibility update failed: %@", error.localizedDescription)
+            return false
+        }
+    }
+
     private func frontmostApplicationDidChange() {
         guard let restriction = activeRestriction else {
             hideShield()
@@ -639,7 +675,11 @@ final class AppController: ObservableObject {
         }
 
         if bundleIdentifier == Self.ownBundleIdentifier {
-            showShield()
+            if restriction.reason == .preLockGuard {
+                hideShield()
+            } else {
+                showShield()
+            }
             return
         }
 

@@ -238,13 +238,19 @@ final class AppController: ObservableObject {
         }
     }
 
-    func removeExitPassword() {
+    @discardableResult
+    func removeExitPassword(currentPassword: String) -> String? {
+        guard exitPasswordStore.verify(currentPassword) else {
+            return "密码不正确，退出密码没有移除。"
+        }
+
         do {
             try exitPasswordStore.removePassword()
             hasExitPassword = false
             lastError = nil
+            return nil
         } catch {
-            lastError = error.localizedDescription
+            return error.localizedDescription
         }
     }
 

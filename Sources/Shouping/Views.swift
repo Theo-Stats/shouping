@@ -189,7 +189,7 @@ private struct DashboardView: View {
 private struct RulesView: View {
     @EnvironmentObject private var controller: AppController
     @State private var showingPasswordSetup = false
-    @State private var confirmingPasswordRemoval = false
+    @State private var showingPasswordRemoval = false
 
     var body: some View {
         Form {
@@ -258,11 +258,11 @@ private struct RulesView: View {
                     }
                     if controller.hasExitPassword {
                         Button("移除", role: .destructive) {
-                            confirmingPasswordRemoval = true
+                            showingPasswordRemoval = true
                         }
                     }
                 }
-                Text("密码保存在 macOS Keychain。未设置密码时，暂停和跳过入口不会出现。密码无法找回，只能移除后重设。")
+                Text("密码保存在 macOS Keychain。未设置密码时，暂停和跳过入口不会出现。密码无法找回；移除密码前需要验证当前密码。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -432,14 +432,9 @@ private struct RulesView: View {
             PasswordSetupView()
                 .environmentObject(controller)
         }
-        .confirmationDialog(
-            "移除退出密码？",
-            isPresented: $confirmingPasswordRemoval
-        ) {
-            Button("移除密码", role: .destructive) { controller.removeExitPassword() }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("移除后，暂停和跳过入口会被禁用，直到重新设置密码。")
+        .sheet(isPresented: $showingPasswordRemoval) {
+            PasswordRemovalView()
+                .environmentObject(controller)
         }
     }
 
@@ -925,19 +920,83 @@ private struct PasswordSetupView: View {
     @State private var password = ""
     @State private var confirmation = ""
     @State private var error: String?
+    @State private var generatedPassword: String?
+    @State private var generatedAt: Date?
+    @State private var didCopyForAdoption = false
+    @State private var adoptionStep = 0
+    @State private var showingAdoptionConfirmation = false
+    @State private var adoptionMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("设置退出密码")
+            Text(controller.hasExitPassword ? "修改退出密码" : "设置退出密码")
                 .font(.title2.weight(.bold))
-            Text("暂停或跳过专注前必须输入此密码。密码只保存在 macOS Keychain，无法找回。")
+            Text("暂停或跳过专注前必须输入此密码。密码只保存在 macOS Keychain，无法找回；保存后必须验证当前密码才能移除。")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             SecureField("新密码（至少 4 位）", text: $password)
                 .textFieldStyle(.roundedBorder)
+                .onChange(of: password) { _, _ in passwordDidChange() }
             SecureField("再次输入密码", text: $confirmation)
                 .textFieldStyle(.roundedBorder)
+                .onChange(of: confirmation) { _, _ in resetCopyStatus() }
+
+            if let generatedAt, generatedPassword == password {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label("本次生成的随机密码", systemImage: "sparkles")
+                            .font(.caption.weight(.semibold))
+                        Spacer()
+                        Text(generatedAt.formatted(date: .abbreviated, time: .standard))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(password)
+                        .font(.system(.title3, design: .monospaced, weight: .semibold))
+                        .textSelection(.enabled)
+                }
+                .padding(10)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            HStack(spacing: 10) {
+                Button("随机生成密码", systemImage: "dice.fill") {
+                    let generated = ExitPasswordGenerator.make()
+                    let now = Date()
+                    generatedPassword = generated
+                    generatedAt = now
+                    password = generated
+                    confirmation = generated
+                    error = nil
+                    adoptionMessage = nil
+                    didCopyForAdoption = false
+                }
+                Button("复制密码和说明", systemImage: "doc.on.doc") {
+                    copyForAdoption()
+                }
+                .disabled(password.count < 4)
+
+                Spacer()
+                Button("此次采用密码", systemImage: "checkmark.shield") {
+                    beginAdoption()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!didCopyForAdoption)
+            }
+
+            if didCopyForAdoption {
+                Label("已复制密码、生成时间和用途说明。请把内容发送给保密人后再采用。", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let adoptionMessage {
+                Label(adoptionMessage, systemImage: "xmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
 
             if let error {
                 Text(error)
@@ -948,7 +1007,7 @@ private struct PasswordSetupView: View {
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
-                Button("保存") {
+                Button("直接保存") {
                     guard password == confirmation else {
                         error = "两次输入的密码不一致。"
                         return
@@ -959,11 +1018,159 @@ private struct PasswordSetupView: View {
                         error = controller.lastError
                     }
                 }
-                .buttonStyle(.borderedProminent)
                 .disabled(password.count < 4 || confirmation.isEmpty)
+            }
+
+            Text("“直接保存”适合自己临时设置密码。若准备把密码交给保密人，请先复制，再点击“此次采用密码”完成三次确认。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(24)
+        .frame(width: 540)
+        .alert(adoptionConfirmationTitle, isPresented: $showingAdoptionConfirmation) {
+            Button("否", role: .cancel) { failAdoption() }
+            Button(adoptionAffirmativeButtonTitle) { advanceAdoption() }
+        } message: {
+            Text(adoptionConfirmationMessage)
+        }
+    }
+
+    private var adoptionConfirmationTitle: String {
+        switch adoptionStep {
+        case 2: return "再次确认是否已发送（2/3）"
+        case 3: return "最终确认采用密码（3/3）"
+        default: return "确认发送密码（1/3）"
+        }
+    }
+
+    private var adoptionConfirmationMessage: String {
+        switch adoptionStep {
+        case 2:
+            return "再次确认：是否已经将这段密码发送给保密人？"
+        case 3:
+            return "最后一次确认：是否已经将密码发送给保密人，并现在采用、保存这个密码？"
+        default:
+            return "是否已经将这段密码发送给保密人？"
+        }
+    }
+
+    private var adoptionAffirmativeButtonTitle: String {
+        adoptionStep == 3 ? "是，采用密码" : "是，已经发送"
+    }
+
+    private func passwordDidChange() {
+        if generatedPassword != password {
+            generatedPassword = nil
+            generatedAt = nil
+        }
+        resetCopyStatus()
+    }
+
+    private func resetCopyStatus() {
+        didCopyForAdoption = false
+        adoptionStep = 0
+        showingAdoptionConfirmation = false
+        adoptionMessage = nil
+    }
+
+    private func copyForAdoption() {
+        guard password.count >= 4 else { return }
+        let now = generatedAt ?? Date()
+        let sharingText = ExitPasswordGenerator.sharingText(for: password, generatedAt: now)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        guard pasteboard.setString(sharingText, forType: .string) else {
+            didCopyForAdoption = false
+            adoptionMessage = "复制失败，密码尚未准备采用。"
+            return
+        }
+        didCopyForAdoption = true
+        adoptionMessage = nil
+        error = nil
+    }
+
+    private func beginAdoption() {
+        guard didCopyForAdoption else {
+            adoptionMessage = "请先复制密码和说明，再采用密码。"
+            return
+        }
+        guard password == confirmation else {
+            error = "两次输入的密码不一致。"
+            return
+        }
+        adoptionStep = 1
+        showingAdoptionConfirmation = true
+    }
+
+    private func advanceAdoption() {
+        showingAdoptionConfirmation = false
+        if adoptionStep < 3 {
+            adoptionStep += 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(180))
+                showingAdoptionConfirmation = true
+            }
+            return
+        }
+
+        if controller.setExitPassword(password) {
+            dismiss()
+        } else {
+            error = controller.lastError
+            adoptionMessage = "采用失败，密码没有保存。"
+            adoptionStep = 0
+        }
+    }
+
+    private func failAdoption() {
+        showingAdoptionConfirmation = false
+        adoptionStep = 0
+        adoptionMessage = "采用失败：尚未确认已将密码发送给保密人。密码没有保存。"
+    }
+}
+
+private struct PasswordRemovalView: View {
+    @EnvironmentObject private var controller: AppController
+    @Environment(\.dismiss) private var dismiss
+    @State private var currentPassword = ""
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("移除退出密码")
+                .font(.title2.weight(.bold))
+            Text("请先输入当前退出密码。验证通过后才会移除密码，并禁用暂停与跳过入口。")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SecureField("当前退出密码", text: $currentPassword)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(removePassword)
+
+            if let error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("取消") { dismiss() }
+                Button("验证并移除", role: .destructive, action: removePassword)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(currentPassword.isEmpty)
             }
         }
         .padding(24)
         .frame(width: 430)
+    }
+
+    private func removePassword() {
+        if let message = controller.removeExitPassword(currentPassword: currentPassword) {
+            error = message
+        } else {
+            dismiss()
+        }
     }
 }

@@ -152,7 +152,7 @@ final class AppController: ObservableObject {
             return
         }
         let requested = minutes ?? configuration.focus.defaultFocusMinutes
-        let duration = min(max(requested, 1), 720)
+        let duration = min(max(requested, 1), 24 * 60)
         previewEnd = nil
         mutateConfiguration {
             $0.focusEndUnixTime = Date().addingTimeInterval(TimeInterval(duration * 60)).timeIntervalSince1970

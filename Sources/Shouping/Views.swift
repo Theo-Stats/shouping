@@ -43,6 +43,7 @@ struct MainView: View {
 
 private struct DashboardView: View {
     @EnvironmentObject private var controller: AppController
+    @State private var customHours = 0
     @State private var customMinutes = 30
 
     var body: some View {
@@ -101,19 +102,26 @@ private struct DashboardView: View {
 
                 HStack(spacing: 10) {
                     Text("自定义")
-                    TextField("分钟", value: $customMinutes, format: .number)
+                    TextField("小时", value: customHoursBinding, format: .number)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 70)
+                        .frame(width: 56)
+                    Text("小时")
+                        .foregroundStyle(.secondary)
+                    Stepper("", value: customHoursBinding, in: 0...24)
+                        .labelsHidden()
+                    TextField("分钟", value: customMinutesBinding, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 56)
                     Text("分钟")
                         .foregroundStyle(.secondary)
-                    Stepper("", value: $customMinutes, in: 1...720)
+                    Stepper("", value: customMinutesBinding, in: 0...59)
                         .labelsHidden()
                     Button("开始自定义专注") {
-                        controller.startQuickFocus(minutes: customMinutes)
+                        controller.startQuickFocus(minutes: customFocusMinutes)
                     }
                     .buttonStyle(.borderedProminent)
                     Spacer()
-                    Text("可设置 1–720 分钟")
+                    Text("可设置 1 分钟–24 小时")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -169,6 +177,31 @@ private struct DashboardView: View {
             }
             .padding(8)
         }
+    }
+
+    private var customFocusMinutes: Int {
+        min(max(customHours, 0) * 60 + max(customMinutes, 0), 24 * 60)
+    }
+
+    private var customHoursBinding: Binding<Int> {
+        Binding(
+            get: { customHours },
+            set: { value in
+                customHours = min(max(value, 0), 24)
+                if customHours == 24 {
+                    customMinutes = 0
+                }
+            }
+        )
+    }
+
+    private var customMinutesBinding: Binding<Int> {
+        Binding(
+            get: { customMinutes },
+            set: { value in
+                customMinutes = customHours == 24 ? 0 : min(max(value, 0), 59)
+            }
+        )
     }
 }
 
@@ -268,14 +301,14 @@ private struct SettingsView: View {
                     if selectedSection == .controls {
                         SettingsCard(.controls) {
                 Toggle(
-                    "允许暂停 5 分钟",
+                    "允许暂停",
                     isOn: Binding(
                         get: { controller.configuration.focus.controls.allowPause },
                         set: { value in controller.mutateConfiguration { $0.focus.controls.allowPause = value } }
                     )
                 )
                 Toggle(
-                    "允许跳过当前专注",
+                    "允许跳过",
                     isOn: Binding(
                         get: { controller.configuration.focus.controls.allowSkip },
                         set: { value in controller.mutateConfiguration { $0.focus.controls.allowSkip = value } }

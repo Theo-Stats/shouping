@@ -46,51 +46,25 @@ public enum InterventionStrength: String, Codable, CaseIterable, Identifiable, S
     }
 }
 
-public enum ShieldStyle: String, Codable, CaseIterable, Identifiable, Sendable {
-    case focus
-    case clock
-    case flip
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .focus: return "专注背景"
-        case .clock: return "极简数字"
-        case .flip: return "翻页时钟"
-        }
-    }
-}
-
 public struct AppearanceSettings: Codable, Equatable, Sendable {
-    public var style: ShieldStyle
-    public var customBackgroundPath: String?
     public var weatherEnabled: Bool
     public var weatherCity: String
 
     public init(
-        style: ShieldStyle = .focus,
-        customBackgroundPath: String? = nil,
         weatherEnabled: Bool = false,
         weatherCity: String = ""
     ) {
-        self.style = style
-        self.customBackgroundPath = customBackgroundPath
         self.weatherEnabled = weatherEnabled
         self.weatherCity = weatherCity
     }
 
     private enum CodingKeys: String, CodingKey {
-        case style
-        case customBackgroundPath
         case weatherEnabled
         case weatherCity
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        style = try container.decodeIfPresent(ShieldStyle.self, forKey: .style) ?? .focus
-        customBackgroundPath = try container.decodeIfPresent(String.self, forKey: .customBackgroundPath)
         weatherEnabled = try container.decodeIfPresent(Bool.self, forKey: .weatherEnabled) ?? false
         weatherCity = try container.decodeIfPresent(String.self, forKey: .weatherCity) ?? ""
     }

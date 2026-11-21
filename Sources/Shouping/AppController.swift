@@ -461,49 +461,6 @@ final class AppController: ObservableObject {
         tick()
     }
 
-    func chooseShieldBackground() {
-        let panel = NSOpenPanel()
-        panel.title = "选择专注屏背景"
-        panel.prompt = "使用图片"
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.image]
-
-        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
-        do {
-            let destinationDirectory = AppSupportPaths.baseDirectory
-                .appendingPathComponent("Backgrounds", isDirectory: true)
-            try FileManager.default.createDirectory(
-                at: destinationDirectory,
-                withIntermediateDirectories: true
-            )
-            let extensionPart = sourceURL.pathExtension.isEmpty ? "image" : sourceURL.pathExtension
-            let destinationURL = destinationDirectory
-                .appendingPathComponent("custom-background.\(extensionPart)")
-            if let previousPath = configuration.appearance.customBackgroundPath,
-               previousPath != destinationURL.path,
-               FileManager.default.fileExists(atPath: previousPath) {
-                try? FileManager.default.removeItem(atPath: previousPath)
-            }
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                try FileManager.default.removeItem(at: destinationURL)
-            }
-            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-            mutateConfiguration { $0.appearance.customBackgroundPath = destinationURL.path }
-        } catch {
-            lastError = "无法保存背景图片：\(error.localizedDescription)"
-        }
-    }
-
-    func clearShieldBackground() {
-        if let path = configuration.appearance.customBackgroundPath,
-           FileManager.default.fileExists(atPath: path) {
-            try? FileManager.default.removeItem(atPath: path)
-        }
-        mutateConfiguration { $0.appearance.customBackgroundPath = nil }
-    }
-
     func refreshWeather() {
         let city = configuration.appearance.weatherCity
         guard configuration.appearance.weatherEnabled else {

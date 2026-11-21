@@ -223,17 +223,13 @@ final class RuleEngineTests: XCTestCase {
         """.utf8)
         let configuration = try JSONDecoder().decode(AppConfiguration.self, from: data)
 
-        XCTAssertEqual(configuration.appearance.style, .focus)
-        XCTAssertNil(configuration.appearance.customBackgroundPath)
         XCTAssertFalse(configuration.appearance.weatherEnabled)
         XCTAssertEqual(configuration.schedule.protectionLeadMinutes, 15)
         XCTAssertTrue(configuration.hideApplicationInFinder)
     }
 
-    func testFlipClockAppearanceRoundTrips() throws {
+    func testClockAppearanceRoundTrips() throws {
         let appearance = AppearanceSettings(
-            style: .flip,
-            customBackgroundPath: nil,
             weatherEnabled: true,
             weatherCity: "上海"
         )
@@ -241,5 +237,13 @@ final class RuleEngineTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AppearanceSettings.self, from: data)
 
         XCTAssertEqual(decoded, appearance)
+    }
+
+    func testLegacyAppearanceStyleIsIgnored() throws {
+        let data = Data(#"{"style":"flip","weatherEnabled":false}"#.utf8)
+        let appearance = try JSONDecoder().decode(AppearanceSettings.self, from: data)
+
+        XCTAssertFalse(appearance.weatherEnabled)
+        XCTAssertTrue(appearance.weatherCity.isEmpty)
     }
 }

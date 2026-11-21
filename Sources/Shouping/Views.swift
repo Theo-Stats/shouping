@@ -139,7 +139,7 @@ private struct DashboardView: View {
                 if controller.activeRestriction != nil {
                     HStack {
                         if controller.canPauseCurrentRestriction {
-                            Button("暂停…") { controller.requestPauseAuthorization() }
+                            Button("暂停") { controller.requestPauseAuthorization() }
                                 .buttonStyle(.bordered)
                         }
                         if controller.canSkipCurrentRestriction {
@@ -267,65 +267,36 @@ private struct RulesView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("屏保样式") {
-                Picker(
-                    "样式",
-                    selection: Binding(
-                        get: { controller.configuration.appearance.style },
-                        set: { style in
-                            controller.mutateConfiguration { $0.appearance.style = style }
-                            if style != .focus, controller.configuration.appearance.weatherEnabled {
-                                controller.refreshWeather()
-                            }
+            Section("时钟屏保") {
+                Toggle(
+                    "显示天气",
+                    isOn: Binding(
+                        get: { controller.configuration.appearance.weatherEnabled },
+                        set: { enabled in
+                            controller.mutateConfiguration { $0.appearance.weatherEnabled = enabled }
+                            if enabled { controller.refreshWeather() }
                         }
                     )
-                ) {
-                    ForEach(ShieldStyle.allCases) { style in
-                        Text(style.title).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
+                )
 
-                if controller.configuration.appearance.style == .focus {
+                if controller.configuration.appearance.weatherEnabled {
                     HStack {
-                        Text(controller.configuration.appearance.customBackgroundPath == nil ? "正在使用默认背景" : "正在使用自定义背景")
-                        Spacer()
-                        Button("选择背景图片…") { controller.chooseShieldBackground() }
-                        if controller.configuration.appearance.customBackgroundPath != nil {
-                            Button("恢复默认") { controller.clearShieldBackground() }
-                        }
-                    }
-                } else {
-                    Toggle(
-                        "在时钟屏保显示天气",
-                        isOn: Binding(
-                            get: { controller.configuration.appearance.weatherEnabled },
-                            set: { enabled in
-                                controller.mutateConfiguration { $0.appearance.weatherEnabled = enabled }
-                                if enabled { controller.refreshWeather() }
-                            }
-                        )
-                    )
-
-                    if controller.configuration.appearance.weatherEnabled {
-                        HStack {
-                            TextField(
-                                "城市，例如：上海",
-                                text: Binding(
-                                    get: { controller.configuration.appearance.weatherCity },
-                                    set: { city in controller.mutateConfiguration { $0.appearance.weatherCity = city } }
-                                )
+                        TextField(
+                            "城市，例如：上海",
+                            text: Binding(
+                                get: { controller.configuration.appearance.weatherCity },
+                                set: { city in controller.mutateConfiguration { $0.appearance.weatherCity = city } }
                             )
-                            .textFieldStyle(.roundedBorder)
-                            Button("获取天气") { controller.refreshWeather() }
-                        }
-                        Text(controller.weatherStatusText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("天气由 Open-Meteo 提供。启用后，应用会把填写的城市和网络请求发送到该服务，不读取或上传本机定位。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        Button("获取天气") { controller.refreshWeather() }
                     }
+                    Text(controller.weatherStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("天气由 Open-Meteo 提供。启用后，应用会把填写的城市和网络请求发送到该服务，不读取或上传本机定位。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -793,120 +764,7 @@ struct ShieldView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
-            ZStack {
-                if controller.configuration.appearance.style == .clock {
-                    clockContent
-                } else if controller.configuration.appearance.style == .flip {
-                    flipClockContent
-                } else {
-                    LinearGradient(
-                        colors: [Color(red: 0.04, green: 0.08, blue: 0.13), Color(red: 0.10, green: 0.12, blue: 0.18)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .ignoresSafeArea()
-
-                    if let backgroundImage {
-                        Image(nsImage: backgroundImage)
-                            .resizable()
-                            .scaledToFill()
-                            .ignoresSafeArea()
-                            .overlay(Color.black.opacity(0.48))
-                    }
-
-                    Circle()
-                        .fill(Color.teal.opacity(0.12))
-                        .frame(width: 520, height: 520)
-                        .blur(radius: 40)
-                        .offset(x: 320, y: -220)
-
-                    VStack(spacing: 24) {
-                    Image(systemName: "shield.fill")
-                        .font(.system(size: 42, weight: .medium))
-                        .foregroundStyle(.teal)
-
-                    VStack(spacing: 8) {
-                        Text(controller.isPreviewing ? "专注屏预览" : (controller.activeRestriction?.reason.title ?? "专注"))
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
-                        Text(controller.remainingText)
-                            .font(.system(size: 58, weight: .semibold, design: .monospaced))
-                            .contentTransition(.numericText())
-                        Text(controller.activeRestriction?.reason.advice ?? "这是专注屏预览，10 秒后自动恢复。")
-                            .font(.title3)
-                            .foregroundStyle(.white.opacity(0.66))
-                    }
-
-                    if !controller.configuration.allowedApplications.isEmpty {
-                        VStack(spacing: 10) {
-                            Text("允许使用")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.45))
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 10) {
-                                    ForEach(controller.configuration.allowedApplications) { application in
-                                        Button {
-                                            controller.openApplication(application)
-                                        } label: {
-                                            HStack(spacing: 8) {
-                                                Image(nsImage: appIcon(for: application))
-                                                    .resizable()
-                                                    .frame(width: 24, height: 24)
-                                                Text(application.displayName)
-                                                    .lineLimit(1)
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .frame(height: 42)
-                                        }
-                                        .buttonStyle(.bordered)
-                                    }
-                                }
-                                .frame(maxWidth: 660)
-                                .frame(maxWidth: .infinity)
-                            }
-                            .frame(maxWidth: 660)
-                        }
-                    }
-
-                    HStack(spacing: 14) {
-                        if controller.canPauseCurrentRestriction {
-                            Button("暂停…") { controller.requestPauseAuthorization() }
-                                .buttonStyle(.bordered)
-                        }
-                        if controller.canSkipCurrentRestriction {
-                            Button(skipButtonTitle) { controller.requestSkipAuthorization() }
-                                .buttonStyle(.bordered)
-                        }
-                        Button("极简数字") {
-                            controller.mutateConfiguration { $0.appearance.style = .clock }
-                            controller.refreshWeather()
-                        }
-                        .buttonStyle(.bordered)
-                        Button("翻页时钟") {
-                            controller.mutateConfiguration { $0.appearance.style = .flip }
-                            controller.refreshWeather()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    if controller.configuration.focus.strength == .strict,
-                       controller.configuration.focus.enforceKeyboardLock,
-                       controller.configuration.focus.controls.allowPause,
-                       controller.hasExitPassword {
-                        VStack(spacing: 5) {
-                            Text(controller.inputGateRunning ? "键盘拦截已开启" : "键盘拦截不可用，当前仍受全屏遮挡保护")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(controller.inputGateRunning ? Color.teal.opacity(0.8) : Color.orange.opacity(0.85))
-                            Text("紧急快捷键：Control + Command + U")
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.white.opacity(0.42))
-                        }
-                    }
-                    }
-                    .padding(40)
-                }
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            clockContent
         }
     }
 
@@ -918,7 +776,7 @@ struct ShieldView: View {
                 Spacer()
 
                 Text(Date(), format: .dateTime.hour().minute())
-                    .font(.system(size: 150, weight: .thin, design: .rounded).monospacedDigit())
+                    .font(.system(size: 210, weight: .thin, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white)
 
                 Text(Date(), format: .dateTime.month(.wide).day().weekday(.wide))
@@ -964,13 +822,10 @@ struct ShieldView: View {
 
                 HStack(spacing: 12) {
                     if controller.canPauseCurrentRestriction {
-                        Button("暂停…") { controller.requestPauseAuthorization() }
+                        Button("暂停") { controller.requestPauseAuthorization() }
                     }
                     if controller.canSkipCurrentRestriction {
                         Button(skipButtonTitle) { controller.requestSkipAuthorization() }
-                    }
-                    Button("切换为专注背景") {
-                        controller.mutateConfiguration { $0.appearance.style = .focus }
                     }
                 }
                 .buttonStyle(.bordered)
@@ -980,91 +835,6 @@ struct ShieldView: View {
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var flipClockContent: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            VStack(spacing: 12) {
-                Spacer(minLength: 30)
-
-                GeometryReader { proxy in
-                    let cardWidth = min(proxy.size.width * 0.29, 390)
-                    let cardHeight = min(proxy.size.height * 0.68, 430)
-                    FlipClockDeck(cardWidth: cardWidth, cardHeight: cardHeight)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .frame(maxHeight: 470)
-
-                Text(Date(), format: .dateTime.month(.wide).day().weekday(.wide))
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(0.56))
-
-                if controller.configuration.appearance.weatherEnabled {
-                    if let weather = controller.weather {
-                        HStack(spacing: 8) {
-                            Image(systemName: weather.symbolName)
-                            Text("\(weather.temperatureCelsius)°  \(weather.condition)")
-                            Text(weather.city).foregroundStyle(.white.opacity(0.45))
-                        }
-                        .font(.title3)
-                        .foregroundStyle(.white.opacity(0.78))
-                    } else {
-                        Text(controller.weatherStatusText)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.42))
-                    }
-                }
-
-                Spacer()
-
-                if !controller.configuration.allowedApplications.isEmpty {
-                    HStack(spacing: 8) {
-                        ForEach(controller.configuration.allowedApplications.prefix(8)) { application in
-                            Button {
-                                controller.openApplication(application)
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(nsImage: appIcon(for: application))
-                                        .resizable()
-                                        .frame(width: 20, height: 20)
-                                    Text(application.displayName)
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                }
-
-                HStack(spacing: 12) {
-                    if controller.canPauseCurrentRestriction {
-                        Button("暂停…") { controller.requestPauseAuthorization() }
-                    }
-                    if controller.canSkipCurrentRestriction {
-                        Button(skipButtonTitle) { controller.requestSkipAuthorization() }
-                    }
-                    Button("极简数字") {
-                        controller.mutateConfiguration { $0.appearance.style = .clock }
-                    }
-                    Button("切换为专注背景") {
-                        controller.mutateConfiguration { $0.appearance.style = .focus }
-                    }
-                }
-                .buttonStyle(.bordered)
-                .padding(.bottom, 36)
-            }
-            .padding(.horizontal, 40)
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var backgroundImage: NSImage? {
-        guard let path = controller.configuration.appearance.customBackgroundPath else {
-            return nil
-        }
-        return NSImage(contentsOfFile: path)
     }
 
     private func appIcon(for application: AppDescriptor) -> NSImage {
@@ -1079,104 +849,6 @@ struct ShieldView: View {
         if controller.isPreviewing { return "结束预览" }
         if controller.activeRestriction?.reason == .quickFocus { return "结束本次专注" }
         return "跳过当前限制"
-    }
-}
-
-private struct FlipClockDeck: View {
-    let cardWidth: CGFloat
-    let cardHeight: CGFloat
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let components = Calendar.current.dateComponents([.hour, .minute], from: context.date)
-            let hour = String(format: "%02d", components.hour ?? 0)
-            let minute = String(format: "%02d", components.minute ?? 0)
-
-            HStack(spacing: 24) {
-                FlipClockCard(value: hour, width: cardWidth, height: cardHeight)
-                FlipClockCard(value: minute, width: cardWidth, height: cardHeight)
-            }
-        }
-    }
-}
-
-private struct FlipClockCard: View {
-    let value: String
-    let width: CGFloat
-    let height: CGFloat
-
-    @State private var displayedValue: String
-    @State private var flipAngle: Double = 0
-    @State private var isAnimating = false
-
-    init(value: String, width: CGFloat, height: CGFloat) {
-        self.value = value
-        self.width = width
-        self.height = height
-        _displayedValue = State(initialValue: value)
-    }
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.10, green: 0.11, blue: 0.12),
-                            Color(red: 0.035, green: 0.04, blue: 0.045),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
-
-            Text(displayedValue)
-                .font(.system(size: height * 0.59, weight: .black, design: .rounded).monospacedDigit())
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.55), radius: 8, y: 5)
-
-            Rectangle()
-                .fill(Color.black.opacity(0.88))
-                .frame(height: 5)
-                .overlay(alignment: .top) {
-                    Rectangle().fill(Color.white.opacity(0.04)).frame(height: 1)
-                }
-
-            HStack {
-                Circle().fill(Color.black).frame(width: 9, height: 9)
-                Spacer()
-                Circle().fill(Color.black).frame(width: 9, height: 9)
-            }
-            .padding(.horizontal, -4)
-        }
-        .frame(width: width, height: height)
-        .rotation3DEffect(
-            .degrees(flipAngle),
-            axis: (x: 1, y: 0, z: 0),
-            anchor: .center,
-            perspective: 0.72
-        )
-        .onChange(of: value) { _, newValue in
-            guard !isAnimating, newValue != displayedValue else { return }
-            isAnimating = true
-            withAnimation(.easeIn(duration: 0.18)) {
-                flipAngle = 88
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                displayedValue = newValue
-                flipAngle = -88
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
-                    flipAngle = 0
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
-                    isAnimating = false
-                }
-            }
-        }
     }
 }
 

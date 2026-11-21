@@ -101,6 +101,10 @@ final class AppController: ObservableObject {
     }
 
     func stopQuickFocus() {
+        guard isPreviewing || configuration.focus.controls.allowSkip else {
+            lastError = "当前专注不允许跳过。"
+            return
+        }
         previewEnd = nil
         mutateConfiguration {
             $0.focusEndUnixTime = nil
@@ -110,11 +114,46 @@ final class AppController: ObservableObject {
     }
 
     func temporaryUnlock(minutes: Int = 5) {
+        guard isPreviewing || configuration.focus.controls.allowPause else {
+            lastError = "当前专注不允许暂停。"
+            return
+        }
         previewEnd = nil
         mutateConfiguration {
             $0.temporaryUnlockEndUnixTime = Date()
                 .addingTimeInterval(TimeInterval(max(minutes, 1) * 60))
                 .timeIntervalSince1970
+        }
+        hideShield()
+    }
+
+    func skipCurrentRestriction() {
+        if isPreviewing {
+            previewEnd = nil
+            hideShield()
+            return
+        }
+
+        guard let restriction = activeRestriction,
+              configuration.focus.controls.allowSkip else {
+            lastError = "当前专注不允许跳过。"
+            return
+        }
+
+        if restriction.reason == .quickFocus {
+            mutateConfiguration {
+                $0.focusEndUnixTime = nil
+                $0.temporaryUnlockEndUnixTime = nil
+            }
+        } else {
+            let endDate = restriction.endDate ?? Calendar.current.date(
+                byAdding: .day,
+                value: 1,
+                to: Calendar.current.startOfDay(for: Date())
+            ) ?? Date().addingTimeInterval(300)
+            mutateConfiguration {
+                $0.temporaryUnlockEndUnixTime = endDate.timeIntervalSince1970
+            }
         }
         hideShield()
     }
@@ -266,7 +305,7 @@ final class AppController: ObservableObject {
 
     func requestQuit() {
         guard canTerminateApplication else {
-            lastError = "当前专注承诺仍在生效。请先临时解锁；后台恢复开启时，即使关闭主程序也会自动拉起。"
+            lastError = "当前专注承诺仍在生效。可在允许时暂停或跳过；后台恢复开启时，即使关闭主程序也会自动拉起。"
             return
         }
         NSApp.terminate(nil)
@@ -284,6 +323,14 @@ final class AppController: ObservableObject {
 
     var isPreviewing: Bool {
         previewEnd != nil
+    }
+
+    var canPauseCurrentRestriction: Bool {
+        isPreviewing || (activeRestriction != nil && configuration.focus.controls.allowPause)
+    }
+
+    var canSkipCurrentRestriction: Bool {
+        isPreviewing || (activeRestriction != nil && configuration.focus.controls.allowSkip)
     }
 
     func clearUsage() {

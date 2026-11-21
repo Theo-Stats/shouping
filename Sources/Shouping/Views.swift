@@ -137,8 +137,16 @@ private struct DashboardView: View {
                 }
                 Spacer()
                 if controller.activeRestriction != nil {
-                    Button("临时解锁 5 分钟") { controller.temporaryUnlock(minutes: 5) }
-                        .buttonStyle(.bordered)
+                    HStack {
+                        if controller.canPauseCurrentRestriction {
+                            Button("暂停 5 分钟") { controller.temporaryUnlock(minutes: 5) }
+                                .buttonStyle(.bordered)
+                        }
+                        if controller.canSkipCurrentRestriction {
+                            Button("跳过当前限制") { controller.skipCurrentRestriction() }
+                                .buttonStyle(.bordered)
+                        }
+                    }
                 }
             }
             .padding(8)
@@ -150,7 +158,7 @@ private struct DashboardView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label("恢复与绕过边界", systemImage: "arrow.uturn.backward.circle")
                     .font(.headline)
-                Text("暂停 5 分钟会解除遮罩和键盘拦截，但不会结束当前专注承诺；开启后台恢复时，后台助手会继续保留守屏。强制模式可用 Control + Command + U 临时解锁。普通 Mac 应用无法可靠阻止管理员删除应用、清空数据或使用“强制退出”，这些操作会直接显示为可见绕过。")
+                Text("暂停与跳过会按你的规则决定是否开放。暂停只解除 5 分钟；跳过会结束当前专注或让当前时段失效到自然结束。普通 Mac 应用无法可靠阻止管理员删除应用、清空数据或使用“强制退出”，这些操作会直接显示为可见绕过。")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -215,6 +223,26 @@ private struct RulesView: View {
                     )
                 )
                 Text("只在专注屏显示时生效；不记录按键内容。需要额外系统权限。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("暂停与跳过") {
+                Toggle(
+                    "允许暂停 5 分钟",
+                    isOn: Binding(
+                        get: { controller.configuration.focus.controls.allowPause },
+                        set: { value in controller.mutateConfiguration { $0.focus.controls.allowPause = value } }
+                    )
+                )
+                Toggle(
+                    "允许跳过当前专注",
+                    isOn: Binding(
+                        get: { controller.configuration.focus.controls.allowSkip },
+                        set: { value in controller.mutateConfiguration { $0.focus.controls.allowSkip = value } }
+                    )
+                )
+                Text("关闭后，对应的遮罩按钮、菜单项和紧急快捷键都会失效。两项都关闭时，只能等待规则自然结束，或使用系统级强制退出。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -710,16 +738,19 @@ struct ShieldView: View {
                     }
 
                     HStack(spacing: 14) {
-                        Button("临时解锁 5 分钟") { controller.temporaryUnlock(minutes: 5) }
-                            .buttonStyle(.bordered)
-                        if controller.isPreviewing || controller.activeRestriction?.reason == .quickFocus {
-                            Button(controller.isPreviewing ? "结束预览" : "结束本次专注") { controller.stopQuickFocus() }
+                        if controller.canPauseCurrentRestriction {
+                            Button("暂停 5 分钟") { controller.temporaryUnlock(minutes: 5) }
+                                .buttonStyle(.bordered)
+                        }
+                        if controller.canSkipCurrentRestriction {
+                            Button(skipButtonTitle) { controller.skipCurrentRestriction() }
                                 .buttonStyle(.bordered)
                         }
                     }
 
                     if controller.configuration.focus.strength == .strict,
-                       controller.configuration.focus.enforceKeyboardLock {
+                       controller.configuration.focus.enforceKeyboardLock,
+                       controller.configuration.focus.controls.allowPause {
                         VStack(spacing: 5) {
                             Text(controller.inputGateRunning ? "键盘拦截已开启" : "键盘拦截不可用，当前仍受全屏遮挡保护")
                                 .font(.caption.weight(.semibold))
@@ -743,5 +774,11 @@ struct ShieldView: View {
                 ?? NSImage(size: NSSize(width: 32, height: 32))
         }
         return NSWorkspace.shared.icon(forFile: path)
+    }
+
+    private var skipButtonTitle: String {
+        if controller.isPreviewing { return "结束预览" }
+        if controller.activeRestriction?.reason == .quickFocus { return "结束本次专注" }
+        return "跳过当前限制"
     }
 }

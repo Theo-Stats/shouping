@@ -109,4 +109,18 @@ final class RuleEngineTests: XCTestCase {
         XCTAssertFalse(EmergencyShortcut.matches(control: true, command: false, keyCode: 32))
         XCTAssertFalse(EmergencyShortcut.matches(control: true, command: true, keyCode: 31))
     }
+
+    func testOlderFocusConfigurationDefaultsToPauseAndSkipAllowed() throws {
+        let data = Data("""
+        {
+          "strength": "strict",
+          "enforceKeyboardLock": true,
+          "defaultFocusMinutes": 40
+        }
+        """.utf8)
+        let settings = try JSONDecoder().decode(FocusSettings.self, from: data)
+
+        XCTAssertTrue(settings.controls.allowPause)
+        XCTAssertTrue(settings.controls.allowSkip)
+    }
 }

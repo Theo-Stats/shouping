@@ -43,6 +43,16 @@ public enum InterventionStrength: String, Codable, CaseIterable, Identifiable, S
     }
 }
 
+public struct FocusControls: Codable, Equatable, Sendable {
+    public var allowPause: Bool
+    public var allowSkip: Bool
+
+    public init(allowPause: Bool = true, allowSkip: Bool = true) {
+        self.allowPause = allowPause
+        self.allowSkip = allowSkip
+    }
+}
+
 public struct AppDescriptor: Codable, Hashable, Identifiable, Sendable {
     public var id: String { bundleIdentifier }
     public var bundleIdentifier: String
@@ -79,15 +89,33 @@ public struct FocusSettings: Codable, Equatable, Sendable {
     public var strength: InterventionStrength
     public var enforceKeyboardLock: Bool
     public var defaultFocusMinutes: Int
+    public var controls: FocusControls
 
     public init(
         strength: InterventionStrength = .shield,
         enforceKeyboardLock: Bool = false,
-        defaultFocusMinutes: Int = 25
+        defaultFocusMinutes: Int = 25,
+        controls: FocusControls = FocusControls()
     ) {
         self.strength = strength
         self.enforceKeyboardLock = enforceKeyboardLock
         self.defaultFocusMinutes = defaultFocusMinutes
+        self.controls = controls
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case strength
+        case enforceKeyboardLock
+        case defaultFocusMinutes
+        case controls
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        strength = try container.decodeIfPresent(InterventionStrength.self, forKey: .strength) ?? .shield
+        enforceKeyboardLock = try container.decodeIfPresent(Bool.self, forKey: .enforceKeyboardLock) ?? false
+        defaultFocusMinutes = try container.decodeIfPresent(Int.self, forKey: .defaultFocusMinutes) ?? 25
+        controls = try container.decodeIfPresent(FocusControls.self, forKey: .controls) ?? FocusControls()
     }
 }
 

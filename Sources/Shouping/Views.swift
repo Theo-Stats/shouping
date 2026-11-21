@@ -1020,9 +1020,15 @@ struct ShieldView: View {
                         HStack(spacing: 8) {
                             Text(controller.weatherStatusText)
                                 .lineLimit(2)
-                            Button("重新获取") { controller.refreshWeather() }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
+                            Button {
+                                controller.refreshWeather()
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                                    .frame(width: 18, height: 18)
+                            }
+                            .buttonStyle(.plain)
+                            .help("重新获取天气")
+                            .accessibilityLabel("重新获取天气")
                             Button {
                                 controller.dismissWeatherForCurrentShield()
                             } label: {

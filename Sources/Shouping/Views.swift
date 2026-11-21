@@ -215,19 +215,18 @@ private struct SettingsView: View {
     @State private var selectedSection: SettingsSection = .focus
 
     var body: some View {
-        ScrollViewReader { proxy in
-            HStack(spacing: 0) {
-                SettingsSidebar(selection: selectedSection) { section in
+        HStack(spacing: 0) {
+            SettingsSidebar(selection: selectedSection) { section in
+                withAnimation(.easeInOut(duration: 0.18)) {
                     selectedSection = section
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        proxy.scrollTo(section.id, anchor: .top)
-                    }
                 }
+            }
 
-                Divider()
+            Divider()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if selectedSection == .focus {
                         SettingsCard(.focus) {
                 Picker(
                     "默认方式",
@@ -264,7 +263,9 @@ private struct SettingsView: View {
                     .foregroundStyle(.secondary)
                         }
                         .id(SettingsSection.focus.id)
+                    }
 
+                    if selectedSection == .controls {
                         SettingsCard(.controls) {
                 Toggle(
                     "允许暂停 5 分钟",
@@ -303,7 +304,9 @@ private struct SettingsView: View {
                     .foregroundStyle(.secondary)
                         }
                         .id(SettingsSection.controls.id)
+                    }
 
+                    if selectedSection == .clock {
                         SettingsCard(.clock) {
                 Toggle(
                     "显示天气",
@@ -337,7 +340,9 @@ private struct SettingsView: View {
                 }
                         }
                         .id(SettingsSection.clock.id)
+                    }
 
+                    if selectedSection == .schedules {
                         SettingsCard(.schedules) {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -366,7 +371,9 @@ private struct SettingsView: View {
                 Button("＋ 添加时间方案") { controller.addScheduleRule() }
                         }
                         .id(SettingsSection.schedules.id)
+                    }
 
+                    if selectedSection == .dailyLimit {
                         SettingsCard(.dailyLimit) {
                 Toggle(
                     "限制指定应用",
@@ -389,7 +396,9 @@ private struct SettingsView: View {
                     .foregroundStyle(.secondary)
                         }
                         .id(SettingsSection.dailyLimit.id)
+                    }
 
+                    if selectedSection == .cycle {
                         SettingsCard(.cycle) {
                 Toggle(
                     "限制连续使用",
@@ -421,7 +430,9 @@ private struct SettingsView: View {
                     .foregroundStyle(.secondary)
                         }
                         .id(SettingsSection.cycle.id)
+                    }
 
+                    if selectedSection == .runtime {
                         SettingsCard(.runtime) {
                 Toggle(
                     "登录后自动启动",
@@ -468,11 +479,12 @@ private struct SettingsView: View {
                         }
                         .id(SettingsSection.runtime.id)
                     }
-                    .padding(24)
-                    .frame(maxWidth: 780, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
+                .padding(24)
+                .frame(maxWidth: 780, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+            .id(selectedSection)
         }
         .sheet(isPresented: $showingPasswordSetup) {
             PasswordSetupView()
@@ -494,7 +506,7 @@ private struct SettingsSidebar: View {
             Text("设置")
                 .font(.title2.weight(.bold))
                 .padding(.horizontal, 10)
-            Text("点击标题跳转")
+            Text("点击切换设置")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 10)

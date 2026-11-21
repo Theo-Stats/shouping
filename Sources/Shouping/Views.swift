@@ -954,23 +954,23 @@ struct ShieldView: View {
     @EnvironmentObject private var controller: AppController
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
-            clockContent
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            clockContent(now: context.date)
         }
     }
 
-    private var clockContent: some View {
+    private func clockContent(now: Date) -> some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 10) {
                 Spacer()
 
-                Text(Date(), format: .dateTime.hour().minute())
+                Text(now, format: .dateTime.hour().minute())
                     .font(.system(size: 210, weight: .thin, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white)
 
-                Text(Date(), format: .dateTime.month(.wide).day().weekday(.wide))
+                Text(now, format: .dateTime.month(.wide).day().weekday(.wide))
                     .font(.title3)
                     .foregroundStyle(.white.opacity(0.55))
 
@@ -1026,6 +1026,67 @@ struct ShieldView: View {
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottomLeading) {
+            countdownView(now: now)
+                .padding(.leading, 18)
+                .padding(.bottom, 18)
+        }
+    }
+
+    @ViewBuilder
+    private func countdownView(now: Date) -> some View {
+        if let endDate = shieldEndDate(now: now), endDate > now {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(countdownText(to: endDate, from: now))
+                Text("\(endTimeText(endDate)) 结束")
+                    .foregroundStyle(.white.opacity(0.28))
+            }
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.38))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 7))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(.white.opacity(0.07), lineWidth: 1)
+            }
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func shieldEndDate(now: Date) -> Date? {
+        if let endDate = controller.activeRestriction?.endDate {
+            return endDate
+        }
+        guard controller.activeRestriction?.reason == .dailyLimit else { return nil }
+        let calendar = Calendar.current
+        return calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: now)
+        )
+    }
+
+    private func countdownText(to endDate: Date, from now: Date) -> String {
+        let seconds = max(0, Int(endDate.timeIntervalSince(now).rounded(.up)))
+        let hours = seconds / 3_600
+        let minutes = (seconds % 3_600) / 60
+        let remainingSeconds = seconds % 60
+        return String(
+            format: "剩余 %02d:%02d:%02d",
+            hours,
+            minutes,
+            remainingSeconds
+        )
+    }
+
+    private func endTimeText(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+        )
     }
 
     private func appIcon(for application: AppDescriptor) -> NSImage {

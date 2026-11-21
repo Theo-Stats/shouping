@@ -32,6 +32,8 @@ final class AppController: ObservableObject {
     @Published private(set) var hasExitPassword = false
     @Published private(set) var authorizationIntent: AuthorizationIntent?
     @Published private(set) var authorizationError: String?
+    @Published private(set) var weather: WeatherSnapshot?
+    @Published private(set) var weatherStatusText = "天气未加载"
 
     var onStatusChange: (() -> Void)?
 
@@ -39,6 +41,7 @@ final class AppController: ObservableObject {
     private let usageStore: UsageStore
     private let ruleEngine = RuleEngine()
     private let exitPasswordStore = ExitPasswordStore()
+    private let weatherService = WeatherService()
     private lazy var overlayController = OverlayController(controller: self)
     private lazy var inputGate = InputGate { [weak self] in
         self?.requestPauseAuthorization()
@@ -50,6 +53,7 @@ final class AppController: ObservableObject {
     private var applicationObservers: [NSObjectProtocol] = []
     private var lastTick = Date()
     private var secondsSinceUsagePersist: TimeInterval = 0
+    private var lastWeatherRefresh: Date?
     private var previewEnd: Date?
     private var cycleTracker = CycleTracker()
 
@@ -75,6 +79,7 @@ final class AppController: ObservableObject {
             RunLoop.main.add(tickTimer, forMode: .common)
         }
         tick()
+        refreshWeatherIfNeeded()
     }
 
     func shutdown() {
@@ -456,6 +461,77 @@ final class AppController: ObservableObject {
         tick()
     }
 
+    func chooseShieldBackground() {
+        let panel = NSOpenPanel()
+        panel.title = "选择专注屏背景"
+        panel.prompt = "使用图片"
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+
+        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
+        do {
+            let destinationDirectory = AppSupportPaths.baseDirectory
+                .appendingPathComponent("Backgrounds", isDirectory: true)
+            try FileManager.default.createDirectory(
+                at: destinationDirectory,
+                withIntermediateDirectories: true
+            )
+            let extensionPart = sourceURL.pathExtension.isEmpty ? "image" : sourceURL.pathExtension
+            let destinationURL = destinationDirectory
+                .appendingPathComponent("custom-background.\(extensionPart)")
+            if let previousPath = configuration.appearance.customBackgroundPath,
+               previousPath != destinationURL.path,
+               FileManager.default.fileExists(atPath: previousPath) {
+                try? FileManager.default.removeItem(atPath: previousPath)
+            }
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+            }
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            mutateConfiguration { $0.appearance.customBackgroundPath = destinationURL.path }
+        } catch {
+            lastError = "无法保存背景图片：\(error.localizedDescription)"
+        }
+    }
+
+    func clearShieldBackground() {
+        if let path = configuration.appearance.customBackgroundPath,
+           FileManager.default.fileExists(atPath: path) {
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        mutateConfiguration { $0.appearance.customBackgroundPath = nil }
+    }
+
+    func refreshWeather() {
+        let city = configuration.appearance.weatherCity
+        guard configuration.appearance.weatherEnabled else {
+            weather = nil
+            weatherStatusText = "天气显示已关闭"
+            return
+        }
+        guard !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            weather = nil
+            weatherStatusText = "请填写城市后获取天气"
+            return
+        }
+
+        weatherStatusText = "正在获取天气…"
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let snapshot = try await WeatherService().fetch(city: city)
+                self.weather = snapshot
+                self.lastWeatherRefresh = Date()
+                self.weatherStatusText = "\(snapshot.city) \(snapshot.condition) \(snapshot.temperatureCelsius)°C"
+            } catch {
+                self.weather = nil
+                self.weatherStatusText = error.localizedDescription
+            }
+        }
+    }
+
     func clearError() {
         lastError = nil
     }
@@ -556,6 +632,7 @@ final class AppController: ObservableObject {
             secondsSinceUsagePersist = 0
         }
         usage = usageStore.daily
+        refreshWeatherIfNeeded(now: now)
 
         if let previewEnd, previewEnd > now {
             activeRestriction = ActiveRestriction(
@@ -638,6 +715,19 @@ final class AppController: ObservableObject {
         if changed {
             configurationStore.save(configuration)
         }
+    }
+
+    private func refreshWeatherIfNeeded(now: Date = Date()) {
+        guard configuration.appearance.weatherEnabled,
+              !configuration.appearance.weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        if let lastWeatherRefresh,
+           now.timeIntervalSince(lastWeatherRefresh) < 1_800 {
+            return
+        }
+        lastWeatherRefresh = now
+        refreshWeather()
     }
 
     @discardableResult

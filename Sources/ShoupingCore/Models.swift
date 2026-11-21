@@ -46,6 +46,54 @@ public enum InterventionStrength: String, Codable, CaseIterable, Identifiable, S
     }
 }
 
+public enum ShieldStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case focus
+    case clock
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .focus: return "专注背景"
+        case .clock: return "极简时钟"
+        }
+    }
+}
+
+public struct AppearanceSettings: Codable, Equatable, Sendable {
+    public var style: ShieldStyle
+    public var customBackgroundPath: String?
+    public var weatherEnabled: Bool
+    public var weatherCity: String
+
+    public init(
+        style: ShieldStyle = .focus,
+        customBackgroundPath: String? = nil,
+        weatherEnabled: Bool = false,
+        weatherCity: String = ""
+    ) {
+        self.style = style
+        self.customBackgroundPath = customBackgroundPath
+        self.weatherEnabled = weatherEnabled
+        self.weatherCity = weatherCity
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case style
+        case customBackgroundPath
+        case weatherEnabled
+        case weatherCity
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        style = try container.decodeIfPresent(ShieldStyle.self, forKey: .style) ?? .focus
+        customBackgroundPath = try container.decodeIfPresent(String.self, forKey: .customBackgroundPath)
+        weatherEnabled = try container.decodeIfPresent(Bool.self, forKey: .weatherEnabled) ?? false
+        weatherCity = try container.decodeIfPresent(String.self, forKey: .weatherCity) ?? ""
+    }
+}
+
 public struct FocusControls: Codable, Equatable, Sendable {
     public var allowPause: Bool
     public var allowSkip: Bool
@@ -166,6 +214,7 @@ public struct CycleSettings: Codable, Equatable, Sendable {
 
 public struct AppConfiguration: Codable, Equatable, Sendable {
     public var focus: FocusSettings
+    public var appearance: AppearanceSettings
     public var schedule: ScheduleSettings
     public var limit: LimitSettings
     public var cycle: CycleSettings
@@ -180,6 +229,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
 
     public init(
         focus: FocusSettings = FocusSettings(),
+        appearance: AppearanceSettings = AppearanceSettings(),
         schedule: ScheduleSettings = ScheduleSettings(),
         limit: LimitSettings = LimitSettings(),
         cycle: CycleSettings = CycleSettings(),
@@ -193,6 +243,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         hideApplicationInFinder: Bool = true
     ) {
         self.focus = focus
+        self.appearance = appearance
         self.schedule = schedule
         self.limit = limit
         self.cycle = cycle
@@ -216,6 +267,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case focus
+        case appearance
         case schedule
         case limit
         case cycle
@@ -232,6 +284,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         focus = try container.decodeIfPresent(FocusSettings.self, forKey: .focus) ?? FocusSettings()
+        appearance = try container.decodeIfPresent(AppearanceSettings.self, forKey: .appearance) ?? AppearanceSettings()
         schedule = try container.decodeIfPresent(ScheduleSettings.self, forKey: .schedule) ?? ScheduleSettings()
         limit = try container.decodeIfPresent(LimitSettings.self, forKey: .limit) ?? LimitSettings()
         cycle = try container.decodeIfPresent(CycleSettings.self, forKey: .cycle) ?? CycleSettings()

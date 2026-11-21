@@ -267,6 +267,68 @@ private struct RulesView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("屏保样式") {
+                Picker(
+                    "样式",
+                    selection: Binding(
+                        get: { controller.configuration.appearance.style },
+                        set: { style in
+                            controller.mutateConfiguration { $0.appearance.style = style }
+                            if style == .clock, controller.configuration.appearance.weatherEnabled {
+                                controller.refreshWeather()
+                            }
+                        }
+                    )
+                ) {
+                    ForEach(ShieldStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if controller.configuration.appearance.style == .focus {
+                    HStack {
+                        Text(controller.configuration.appearance.customBackgroundPath == nil ? "正在使用默认背景" : "正在使用自定义背景")
+                        Spacer()
+                        Button("选择背景图片…") { controller.chooseShieldBackground() }
+                        if controller.configuration.appearance.customBackgroundPath != nil {
+                            Button("恢复默认") { controller.clearShieldBackground() }
+                        }
+                    }
+                } else {
+                    Toggle(
+                        "在时钟屏保显示天气",
+                        isOn: Binding(
+                            get: { controller.configuration.appearance.weatherEnabled },
+                            set: { enabled in
+                                controller.mutateConfiguration { $0.appearance.weatherEnabled = enabled }
+                                if enabled { controller.refreshWeather() }
+                            }
+                        )
+                    )
+
+                    if controller.configuration.appearance.weatherEnabled {
+                        HStack {
+                            TextField(
+                                "城市，例如：上海",
+                                text: Binding(
+                                    get: { controller.configuration.appearance.weatherCity },
+                                    set: { city in controller.mutateConfiguration { $0.appearance.weatherCity = city } }
+                                )
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            Button("获取天气") { controller.refreshWeather() }
+                        }
+                        Text(controller.weatherStatusText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("天气由 Open-Meteo 提供。启用后，应用会把填写的城市和网络请求发送到该服务，不读取或上传本机定位。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             Section("定时专注") {
                 Toggle(
                     "启用定时规则",
@@ -732,20 +794,31 @@ struct ShieldView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.04, green: 0.08, blue: 0.13), Color(red: 0.10, green: 0.12, blue: 0.18)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                if controller.configuration.appearance.style == .clock {
+                    clockContent
+                } else {
+                    LinearGradient(
+                        colors: [Color(red: 0.04, green: 0.08, blue: 0.13), Color(red: 0.10, green: 0.12, blue: 0.18)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
 
-                Circle()
-                    .fill(Color.teal.opacity(0.12))
-                    .frame(width: 520, height: 520)
-                    .blur(radius: 40)
-                    .offset(x: 320, y: -220)
+                    if let backgroundImage {
+                        Image(nsImage: backgroundImage)
+                            .resizable()
+                            .scaledToFill()
+                            .ignoresSafeArea()
+                            .overlay(Color.black.opacity(0.48))
+                    }
 
-                VStack(spacing: 24) {
+                    Circle()
+                        .fill(Color.teal.opacity(0.12))
+                        .frame(width: 520, height: 520)
+                        .blur(radius: 40)
+                        .offset(x: 320, y: -220)
+
+                    VStack(spacing: 24) {
                     Image(systemName: "shield.fill")
                         .font(.system(size: 42, weight: .medium))
                         .foregroundStyle(.teal)
@@ -801,6 +874,11 @@ struct ShieldView: View {
                             Button(skipButtonTitle) { controller.requestSkipAuthorization() }
                                 .buttonStyle(.bordered)
                         }
+                        Button("极简时钟") {
+                            controller.mutateConfiguration { $0.appearance.style = .clock }
+                            controller.refreshWeather()
+                        }
+                        .buttonStyle(.bordered)
                     }
 
                     if controller.configuration.focus.strength == .strict,
@@ -816,12 +894,92 @@ struct ShieldView: View {
                                 .foregroundStyle(.white.opacity(0.42))
                         }
                     }
+                    }
+                    .padding(40)
                 }
-                .padding(40)
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var clockContent: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 10) {
+                Spacer()
+
+                Text(Date(), format: .dateTime.hour().minute())
+                    .font(.system(size: 150, weight: .thin, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white)
+
+                Text(Date(), format: .dateTime.month(.wide).day().weekday(.wide))
+                    .font(.title3)
+                    .foregroundStyle(.white.opacity(0.55))
+
+                if controller.configuration.appearance.weatherEnabled {
+                    if let weather = controller.weather {
+                        HStack(spacing: 8) {
+                            Image(systemName: weather.symbolName)
+                            Text("\(weather.temperatureCelsius)°  \(weather.condition)")
+                            Text(weather.city)
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.78))
+                    } else {
+                        Text(controller.weatherStatusText)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.42))
+                    }
+                }
+
+                Spacer()
+
+                if !controller.configuration.allowedApplications.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(controller.configuration.allowedApplications.prefix(8)) { application in
+                            Button {
+                                controller.openApplication(application)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(nsImage: appIcon(for: application))
+                                        .resizable()
+                                        .frame(width: 20, height: 20)
+                                    Text(application.displayName)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    if controller.canPauseCurrentRestriction {
+                        Button("暂停…") { controller.requestPauseAuthorization() }
+                    }
+                    if controller.canSkipCurrentRestriction {
+                        Button(skipButtonTitle) { controller.requestSkipAuthorization() }
+                    }
+                    Button("切换为专注背景") {
+                        controller.mutateConfiguration { $0.appearance.style = .focus }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .padding(.bottom, 42)
+            }
+            .padding(.horizontal, 40)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var backgroundImage: NSImage? {
+        guard let path = controller.configuration.appearance.customBackgroundPath else {
+            return nil
+        }
+        return NSImage(contentsOfFile: path)
     }
 
     private func appIcon(for application: AppDescriptor) -> NSImage {

@@ -200,4 +200,33 @@ final class RuleEngineTests: XCTestCase {
         XCTAssertTrue(settings.controls.allowPause)
         XCTAssertTrue(settings.controls.allowSkip)
     }
+
+    func testOlderConfigurationDefaultsToFocusShieldWithoutWeather() throws {
+        let data = Data("""
+        {
+          "focus": {
+            "strength": "shield",
+            "enforceKeyboardLock": false,
+            "defaultFocusMinutes": 25
+          },
+          "schedule": {
+            "isEnabled": false,
+            "activeWeekdays": [2, 3, 4, 5, 6],
+            "startMinutes": 540,
+            "endMinutes": 690
+          },
+          "limit": {
+            "isEnabled": false,
+            "dailyMinutes": 60
+          }
+        }
+        """.utf8)
+        let configuration = try JSONDecoder().decode(AppConfiguration.self, from: data)
+
+        XCTAssertEqual(configuration.appearance.style, .focus)
+        XCTAssertNil(configuration.appearance.customBackgroundPath)
+        XCTAssertFalse(configuration.appearance.weatherEnabled)
+        XCTAssertEqual(configuration.schedule.protectionLeadMinutes, 15)
+        XCTAssertTrue(configuration.hideApplicationInFinder)
+    }
 }

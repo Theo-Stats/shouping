@@ -10,6 +10,11 @@ public struct RuleEngine: Sendable {
         calendar: Calendar = .current,
         honorTemporaryUnlock: Bool = true
     ) -> ActiveRestriction? {
+        if let skippedEnd = configuration.skippedRestrictionEndUnixTime,
+           Date(timeIntervalSince1970: skippedEnd) > now {
+            return nil
+        }
+
         if honorTemporaryUnlock,
            let unlockEnd = configuration.temporaryUnlockEndUnixTime,
            Date(timeIntervalSince1970: unlockEnd) > now {

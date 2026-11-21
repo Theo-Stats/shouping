@@ -81,8 +81,8 @@ final class MenuBarController: NSObject {
     @objc private func startTwentyFiveMinutes() { controller.startQuickFocus(minutes: 25) }
     @objc private func startFortyFiveMinutes() { controller.startQuickFocus(minutes: 45) }
     @objc private func previewShield() { controller.previewShield() }
-    @objc private func pauseFiveMinutes() { controller.temporaryUnlock(minutes: 5) }
-    @objc private func skipCurrentRestriction() { controller.skipCurrentRestriction() }
+    @objc private func pauseFiveMinutes() { controller.requestPauseAuthorization() }
+    @objc private func skipCurrentRestriction() { controller.requestSkipAuthorization() }
     @objc private func showDashboard() { openDashboard() }
     @objc private func quitApplication() { controller.requestQuit() }
 }

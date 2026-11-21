@@ -150,6 +150,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var limitedApplications: [AppDescriptor]
     public var focusEndUnixTime: TimeInterval?
     public var temporaryUnlockEndUnixTime: TimeInterval?
+    public var skippedRestrictionEndUnixTime: TimeInterval?
     public var launchAtLogin: Bool
     public var backgroundRecovery: Bool
 
@@ -162,6 +163,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         limitedApplications: [AppDescriptor] = [],
         focusEndUnixTime: TimeInterval? = nil,
         temporaryUnlockEndUnixTime: TimeInterval? = nil,
+        skippedRestrictionEndUnixTime: TimeInterval? = nil,
         launchAtLogin: Bool = false,
         backgroundRecovery: Bool = false
     ) {
@@ -173,6 +175,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.limitedApplications = limitedApplications
         self.focusEndUnixTime = focusEndUnixTime
         self.temporaryUnlockEndUnixTime = temporaryUnlockEndUnixTime
+        self.skippedRestrictionEndUnixTime = skippedRestrictionEndUnixTime
         self.launchAtLogin = launchAtLogin
         self.backgroundRecovery = backgroundRecovery
     }
@@ -194,6 +197,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         case limitedApplications
         case focusEndUnixTime
         case temporaryUnlockEndUnixTime
+        case skippedRestrictionEndUnixTime
         case launchAtLogin
         case backgroundRecovery
     }
@@ -208,6 +212,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         limitedApplications = try container.decodeIfPresent([AppDescriptor].self, forKey: .limitedApplications) ?? []
         focusEndUnixTime = try container.decodeIfPresent(TimeInterval.self, forKey: .focusEndUnixTime)
         temporaryUnlockEndUnixTime = try container.decodeIfPresent(TimeInterval.self, forKey: .temporaryUnlockEndUnixTime)
+        skippedRestrictionEndUnixTime = try container.decodeIfPresent(TimeInterval.self, forKey: .skippedRestrictionEndUnixTime)
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         backgroundRecovery = try container.decodeIfPresent(Bool.self, forKey: .backgroundRecovery) ?? false
     }

@@ -65,6 +65,24 @@ final class RuleEngineTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testSkippedRestrictionAlsoSuppressesBackgroundRecovery() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let engine = RuleEngine()
+        var configuration = AppConfiguration()
+        configuration.focusEndUnixTime = now.addingTimeInterval(1_800).timeIntervalSince1970
+        configuration.skippedRestrictionEndUnixTime = now.addingTimeInterval(900).timeIntervalSince1970
+
+        let result = engine.activeRestriction(
+            configuration: configuration,
+            usage: DailyUsage(dayKey: "2027-01-15"),
+            now: now,
+            calendar: calendar,
+            honorTemporaryUnlock: false
+        )
+
+        XCTAssertNil(result)
+    }
+
     func testDailyLimitBlocksOnlySelectedApplications() {
         let engine = RuleEngine()
         var configuration = AppConfiguration()

@@ -139,11 +139,11 @@ private struct DashboardView: View {
                 if controller.activeRestriction != nil {
                     HStack {
                         if controller.canPauseCurrentRestriction {
-                            Button("暂停 5 分钟") { controller.temporaryUnlock(minutes: 5) }
+                            Button("暂停…") { controller.requestPauseAuthorization() }
                                 .buttonStyle(.bordered)
                         }
                         if controller.canSkipCurrentRestriction {
-                            Button("跳过当前限制") { controller.skipCurrentRestriction() }
+                            Button("跳过…") { controller.requestSkipAuthorization() }
                                 .buttonStyle(.bordered)
                         }
                     }
@@ -188,6 +188,8 @@ private struct DashboardView: View {
 
 private struct RulesView: View {
     @EnvironmentObject private var controller: AppController
+    @State private var showingPasswordSetup = false
+    @State private var confirmingPasswordRemoval = false
 
     var body: some View {
         Form {
@@ -243,6 +245,24 @@ private struct RulesView: View {
                     )
                 )
                 Text("关闭后，对应的遮罩按钮、菜单项和紧急快捷键都会失效。两项都关闭时，只能等待规则自然结束，或使用系统级强制退出。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Image(systemName: controller.hasExitPassword ? "key.fill" : "key.slash")
+                        .foregroundStyle(controller.hasExitPassword ? .green : .orange)
+                    Text(controller.hasExitPassword ? "退出密码已设置" : "尚未设置退出密码")
+                    Spacer()
+                    Button(controller.hasExitPassword ? "修改密码" : "设置密码") {
+                        showingPasswordSetup = true
+                    }
+                    if controller.hasExitPassword {
+                        Button("移除", role: .destructive) {
+                            confirmingPasswordRemoval = true
+                        }
+                    }
+                }
+                Text("密码保存在 macOS Keychain。未设置密码时，暂停和跳过入口不会出现。密码无法找回，只能移除后重设。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -391,6 +411,19 @@ private struct RulesView: View {
         }
         .formStyle(.grouped)
         .padding(.horizontal, 8)
+        .sheet(isPresented: $showingPasswordSetup) {
+            PasswordSetupView()
+                .environmentObject(controller)
+        }
+        .confirmationDialog(
+            "移除退出密码？",
+            isPresented: $confirmingPasswordRemoval
+        ) {
+            Button("移除密码", role: .destructive) { controller.removeExitPassword() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("移除后，暂停和跳过入口会被禁用，直到重新设置密码。")
+        }
     }
 
     private static let weekdays = ["日", "一", "二", "三", "四", "五", "六"]
@@ -739,18 +772,19 @@ struct ShieldView: View {
 
                     HStack(spacing: 14) {
                         if controller.canPauseCurrentRestriction {
-                            Button("暂停 5 分钟") { controller.temporaryUnlock(minutes: 5) }
+                            Button("暂停…") { controller.requestPauseAuthorization() }
                                 .buttonStyle(.bordered)
                         }
                         if controller.canSkipCurrentRestriction {
-                            Button(skipButtonTitle) { controller.skipCurrentRestriction() }
+                            Button(skipButtonTitle) { controller.requestSkipAuthorization() }
                                 .buttonStyle(.bordered)
                         }
                     }
 
                     if controller.configuration.focus.strength == .strict,
                        controller.configuration.focus.enforceKeyboardLock,
-                       controller.configuration.focus.controls.allowPause {
+                       controller.configuration.focus.controls.allowPause,
+                       controller.hasExitPassword {
                         VStack(spacing: 5) {
                             Text(controller.inputGateRunning ? "键盘拦截已开启" : "键盘拦截不可用，当前仍受全屏遮挡保护")
                                 .font(.caption.weight(.semibold))
@@ -780,5 +814,54 @@ struct ShieldView: View {
         if controller.isPreviewing { return "结束预览" }
         if controller.activeRestriction?.reason == .quickFocus { return "结束本次专注" }
         return "跳过当前限制"
+    }
+}
+
+private struct PasswordSetupView: View {
+    @EnvironmentObject private var controller: AppController
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var confirmation = ""
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("设置退出密码")
+                .font(.title2.weight(.bold))
+            Text("暂停或跳过专注前必须输入此密码。密码只保存在 macOS Keychain，无法找回。")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SecureField("新密码（至少 4 位）", text: $password)
+                .textFieldStyle(.roundedBorder)
+            SecureField("再次输入密码", text: $confirmation)
+                .textFieldStyle(.roundedBorder)
+
+            if let error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("取消") { dismiss() }
+                Button("保存") {
+                    guard password == confirmation else {
+                        error = "两次输入的密码不一致。"
+                        return
+                    }
+                    if controller.setExitPassword(password) {
+                        dismiss()
+                    } else {
+                        error = controller.lastError
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(password.count < 4 || confirmation.isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 430)
     }
 }

@@ -6,6 +6,13 @@ import ShoupingCore
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum AuthorizationIntent: String, Identifiable {
+    case pause
+    case skip
+
+    var id: String { rawValue }
+}
+
 @MainActor
 final class AppController: ObservableObject {
     static let ownBundleIdentifier = "com.example.shouping"
@@ -22,16 +29,21 @@ final class AppController: ObservableObject {
     @Published private(set) var permissionTestMessage: String?
     @Published private(set) var loginServiceStatusText = "正在检查"
     @Published private(set) var backgroundServiceStatusText = "正在检查"
+    @Published private(set) var hasExitPassword = false
+    @Published private(set) var authorizationIntent: AuthorizationIntent?
+    @Published private(set) var authorizationError: String?
 
     var onStatusChange: (() -> Void)?
 
     private let configurationStore: ConfigurationStore
     private let usageStore: UsageStore
     private let ruleEngine = RuleEngine()
+    private let exitPasswordStore = ExitPasswordStore()
     private lazy var overlayController = OverlayController(controller: self)
     private lazy var inputGate = InputGate { [weak self] in
-        self?.temporaryUnlock(minutes: 5)
+        self?.requestPauseAuthorization()
     }
+    private lazy var authorizationWindowController = AuthorizationWindowController(controller: self)
 
     private var tickTimer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -46,6 +58,7 @@ final class AppController: ObservableObject {
         usageStore = UsageStore(fileURL: AppSupportPaths.usageURL)
         configuration = configurationStore.load()
         usage = usageStore.daily
+        hasExitPassword = exitPasswordStore.hasPassword
     }
 
     func start() {
@@ -69,6 +82,7 @@ final class AppController: ObservableObject {
         usageStore.persist()
         inputGate.stop()
         overlayController.hide()
+        authorizationWindowController.hide()
 
         let center = NSWorkspace.shared.notificationCenter
         workspaceObservers.forEach(center.removeObserver)
@@ -89,61 +103,132 @@ final class AppController: ObservableObject {
     }
 
     func startQuickFocus(minutes: Int? = nil) {
+        if (configuration.focus.controls.allowPause || configuration.focus.controls.allowSkip),
+           !hasExitPassword {
+            lastError = "请先在“规则 → 暂停与跳过”中设置退出密码，或在开始前关闭暂停和跳过入口。"
+            return
+        }
         let requested = minutes ?? configuration.focus.defaultFocusMinutes
         let duration = min(max(requested, 1), 720)
         previewEnd = nil
         mutateConfiguration {
             $0.focusEndUnixTime = Date().addingTimeInterval(TimeInterval(duration * 60)).timeIntervalSince1970
             $0.temporaryUnlockEndUnixTime = nil
+            $0.skippedRestrictionEndUnixTime = nil
         }
         overlayController.show()
         updateInputGate(for: true)
     }
 
-    func stopQuickFocus() {
-        guard isPreviewing || configuration.focus.controls.allowSkip else {
-            lastError = "当前专注不允许跳过。"
-            return
-        }
-        previewEnd = nil
-        mutateConfiguration {
-            $0.focusEndUnixTime = nil
-            $0.temporaryUnlockEndUnixTime = nil
-        }
-        hideShield()
-    }
-
-    func temporaryUnlock(minutes: Int = 5) {
-        guard isPreviewing || configuration.focus.controls.allowPause else {
-            lastError = "当前专注不允许暂停。"
-            return
-        }
-        previewEnd = nil
-        mutateConfiguration {
-            $0.temporaryUnlockEndUnixTime = Date()
-                .addingTimeInterval(TimeInterval(max(minutes, 1) * 60))
-                .timeIntervalSince1970
-        }
-        hideShield()
-    }
-
-    func skipCurrentRestriction() {
+    func requestPauseAuthorization() {
         if isPreviewing {
             previewEnd = nil
             hideShield()
             return
         }
 
-        guard let restriction = activeRestriction,
-              configuration.focus.controls.allowSkip else {
+        guard activeRestriction != nil else { return }
+        guard configuration.focus.controls.allowPause else {
+            lastError = "当前专注不允许暂停。"
+            return
+        }
+        guard hasExitPassword else {
+            lastError = "请先在“规则 → 暂停与跳过”中设置退出密码。"
+            return
+        }
+
+        beginAuthorization(.pause)
+    }
+
+    func requestSkipAuthorization() {
+        if isPreviewing {
+            previewEnd = nil
+            hideShield()
+            return
+        }
+
+        guard activeRestriction != nil else { return }
+        guard configuration.focus.controls.allowSkip else {
             lastError = "当前专注不允许跳过。"
             return
         }
+
+        guard hasExitPassword else {
+            lastError = "请先在“规则 → 暂停与跳过”中设置退出密码。"
+            return
+        }
+
+        beginAuthorization(.skip)
+    }
+
+    func verifyAuthorizationPassword(_ password: String) -> Bool {
+        let valid = exitPasswordStore.verify(password)
+        authorizationError = valid ? nil : "密码不正确。"
+        return valid
+    }
+
+    func completePauseAuthorization(seconds: TimeInterval) {
+        guard authorizationIntent == .pause else { return }
+        applyTemporaryUnlock(seconds: seconds)
+        finishAuthorization()
+    }
+
+    func completeSkipAuthorization() {
+        guard authorizationIntent == .skip else { return }
+        applySkipCurrentRestriction()
+        finishAuthorization()
+    }
+
+    func cancelAuthorization() {
+        finishAuthorization()
+        if activeRestriction != nil {
+            showShield()
+        }
+    }
+
+    @discardableResult
+    func setExitPassword(_ password: String) -> Bool {
+        do {
+            try exitPasswordStore.setPassword(password)
+            hasExitPassword = true
+            lastError = nil
+            return true
+        } catch {
+            lastError = error.localizedDescription
+            return false
+        }
+    }
+
+    func removeExitPassword() {
+        do {
+            try exitPasswordStore.removePassword()
+            hasExitPassword = false
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func applyTemporaryUnlock(seconds: TimeInterval) {
+        let duration = min(max(seconds, 1), 40_000_000)
+        previewEnd = nil
+        mutateConfiguration {
+            $0.temporaryUnlockEndUnixTime = Date()
+                .addingTimeInterval(duration)
+                .timeIntervalSince1970
+            $0.skippedRestrictionEndUnixTime = nil
+        }
+        hideShield()
+    }
+
+    private func applySkipCurrentRestriction() {
+        guard let restriction = activeRestriction else { return }
 
         if restriction.reason == .quickFocus {
             mutateConfiguration {
                 $0.focusEndUnixTime = nil
                 $0.temporaryUnlockEndUnixTime = nil
+                $0.skippedRestrictionEndUnixTime = nil
             }
         } else {
             let endDate = restriction.endDate ?? Calendar.current.date(
@@ -152,10 +237,25 @@ final class AppController: ObservableObject {
                 to: Calendar.current.startOfDay(for: Date())
             ) ?? Date().addingTimeInterval(300)
             mutateConfiguration {
-                $0.temporaryUnlockEndUnixTime = endDate.timeIntervalSince1970
+                $0.temporaryUnlockEndUnixTime = nil
+                $0.skippedRestrictionEndUnixTime = endDate.timeIntervalSince1970
             }
         }
         hideShield()
+    }
+
+    private func beginAuthorization(_ intent: AuthorizationIntent) {
+        authorizationIntent = intent
+        authorizationError = nil
+        inputGate.stop()
+        inputGateRunning = false
+        authorizationWindowController.show(intent: intent)
+    }
+
+    private func finishAuthorization() {
+        authorizationWindowController.hide()
+        authorizationIntent = nil
+        authorizationError = nil
     }
 
     func previewShield() {
@@ -326,11 +426,19 @@ final class AppController: ObservableObject {
     }
 
     var canPauseCurrentRestriction: Bool {
-        isPreviewing || (activeRestriction != nil && configuration.focus.controls.allowPause)
+        isPreviewing || (
+            activeRestriction != nil
+                && configuration.focus.controls.allowPause
+                && hasExitPassword
+        )
     }
 
     var canSkipCurrentRestriction: Bool {
-        isPreviewing || (activeRestriction != nil && configuration.focus.controls.allowSkip)
+        isPreviewing || (
+            activeRestriction != nil
+                && configuration.focus.controls.allowSkip
+                && hasExitPassword
+        )
     }
 
     func clearUsage() {
@@ -369,6 +477,9 @@ final class AppController: ObservableObject {
         }
         if configuration.temporaryUnlockEndUnixTime.map({ Date(timeIntervalSince1970: $0) > Date() }) == true {
             return "所有应用现在可正常使用；专注承诺仍未结束"
+        }
+        if configuration.skippedRestrictionEndUnixTime.map({ Date(timeIntervalSince1970: $0) > Date() }) == true {
+            return "本次限制已跳过；下一轮仍会按规则执行"
         }
         return "当前没有生效的限制"
     }
@@ -476,6 +587,9 @@ final class AppController: ObservableObject {
             if let unlockEnd = configuration.temporaryUnlockEndUnixTime,
                Date(timeIntervalSince1970: unlockEnd) > now {
                 statusText = "已暂停 · \(remainingText)"
+            } else if let skippedEnd = configuration.skippedRestrictionEndUnixTime,
+                      Date(timeIntervalSince1970: skippedEnd) > now {
+                statusText = "本次限制已跳过"
             } else {
                 statusText = "守屏待命"
             }
@@ -501,6 +615,10 @@ final class AppController: ObservableObject {
         }
         if let end = configuration.temporaryUnlockEndUnixTime, Date(timeIntervalSince1970: end) <= now {
             configuration.temporaryUnlockEndUnixTime = nil
+            changed = true
+        }
+        if let end = configuration.skippedRestrictionEndUnixTime, Date(timeIntervalSince1970: end) <= now {
+            configuration.skippedRestrictionEndUnixTime = nil
             changed = true
         }
         if changed {

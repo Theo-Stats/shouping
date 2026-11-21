@@ -21,7 +21,7 @@ final class AppController: ObservableObject {
     @Published private(set) var usage: DailyUsage
     @Published private(set) var activeRestriction: ActiveRestriction?
     @Published private(set) var shieldVisible = false
-    @Published private(set) var shieldDetailsVisible = true
+    @Published private(set) var shieldDetailsVisible = false
     @Published private(set) var systemAudioMuted = false
     @Published private(set) var statusText = "正在启动"
     @Published private(set) var lastError: String?
@@ -837,6 +837,9 @@ final class AppController: ObservableObject {
 
     private func showShield() {
         guard activeRestriction != nil || previewEnd != nil else { return }
+        if !shieldVisible {
+            shieldDetailsVisible = false
+        }
         shieldVisible = true
         overlayController.show()
         updateInputGate(for: true)

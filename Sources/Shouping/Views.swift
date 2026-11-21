@@ -963,15 +963,15 @@ struct ShieldView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 Spacer()
 
                 Text(now, format: .dateTime.hour().minute())
-                    .font(.system(size: 210, weight: .thin, design: .rounded).monospacedDigit())
+                    .font(.system(size: 232, weight: .thin, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white)
 
                 Text(now, format: .dateTime.month(.wide).day().weekday(.wide))
-                    .font(.title3)
+                    .font(.title2)
                     .foregroundStyle(.white.opacity(0.55))
 
                 if controller.configuration.appearance.weatherEnabled {
@@ -982,7 +982,7 @@ struct ShieldView: View {
                             Text(weather.city)
                                 .foregroundStyle(.white.opacity(0.5))
                         }
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundStyle(.white.opacity(0.78))
                     } else {
                         Text(controller.weatherStatusText)
@@ -993,44 +993,76 @@ struct ShieldView: View {
 
                 Spacer()
 
-                if !controller.configuration.allowedApplications.isEmpty {
-                    HStack(spacing: 8) {
-                        ForEach(controller.configuration.allowedApplications.prefix(8)) { application in
-                            Button {
-                                controller.openApplication(application)
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(nsImage: appIcon(for: application))
-                                        .resizable()
-                                        .frame(width: 20, height: 20)
-                                    Text(application.displayName)
+                if controller.shieldDetailsVisible {
+                    if !controller.configuration.allowedApplications.isEmpty {
+                        HStack(spacing: 8) {
+                            ForEach(controller.configuration.allowedApplications.prefix(8)) { application in
+                                Button {
+                                    controller.openApplication(application)
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(nsImage: appIcon(for: application))
+                                            .resizable()
+                                            .frame(width: 20, height: 20)
+                                        Text(application.displayName)
+                                    }
                                 }
+                                .buttonStyle(.bordered)
                             }
-                            .buttonStyle(.bordered)
                         }
                     }
-                }
 
-                HStack(spacing: 12) {
-                    if controller.canPauseCurrentRestriction {
-                        Button("暂停") { controller.requestPauseAuthorization() }
+                    HStack(spacing: 12) {
+                        if controller.canPauseCurrentRestriction {
+                            Button("暂停") { controller.requestPauseAuthorization() }
+                        }
+                        if controller.canSkipCurrentRestriction {
+                            Button(skipButtonTitle) { controller.requestSkipAuthorization() }
+                        }
                     }
-                    if controller.canSkipCurrentRestriction {
-                        Button(skipButtonTitle) { controller.requestSkipAuthorization() }
-                    }
+                    .buttonStyle(.bordered)
+                    .padding(.bottom, 42)
+                } else {
+                    Color.clear.frame(height: 42)
                 }
-                .buttonStyle(.bordered)
-                .padding(.bottom, 42)
             }
             .padding(.horizontal, 40)
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .bottomLeading) {
-            countdownView(now: now)
-                .padding(.leading, 18)
-                .padding(.bottom, 18)
+            if controller.shieldDetailsVisible {
+                countdownView(now: now)
+                    .padding(.leading, 18)
+                    .padding(.bottom, 18)
+                    .transition(.opacity)
+            }
         }
+        .overlay(alignment: .topTrailing) {
+            detailsToggleButton
+                .padding(.top, 18)
+                .padding(.trailing, 18)
+        }
+        .animation(.easeInOut(duration: 0.18), value: controller.shieldDetailsVisible)
+    }
+
+    private var detailsToggleButton: some View {
+        Button {
+            controller.toggleShieldDetails()
+        } label: {
+            Image(systemName: controller.shieldDetailsVisible ? "eye.slash" : "eye")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .background(.white.opacity(0.065), in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(.white.opacity(0.09), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(0.4))
+        .help(controller.shieldDetailsVisible ? "隐藏附加信息" : "显示附加信息")
+        .accessibilityLabel(controller.shieldDetailsVisible ? "隐藏附加信息" : "显示附加信息")
     }
 
     @ViewBuilder

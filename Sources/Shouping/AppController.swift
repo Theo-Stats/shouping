@@ -21,6 +21,7 @@ final class AppController: ObservableObject {
     @Published private(set) var usage: DailyUsage
     @Published private(set) var activeRestriction: ActiveRestriction?
     @Published private(set) var shieldVisible = false
+    @Published private(set) var shieldDetailsVisible = true
     @Published private(set) var statusText = "正在启动"
     @Published private(set) var lastError: String?
     @Published private(set) var accessibilityTrusted = false
@@ -308,6 +309,10 @@ final class AppController: ObservableObject {
         overlayController.show()
         updateInputGate(for: false)
         tick()
+    }
+
+    func toggleShieldDetails() {
+        shieldDetailsVisible.toggle()
     }
 
     func chooseAllowedApplications() {

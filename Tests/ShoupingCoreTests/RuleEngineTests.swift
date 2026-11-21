@@ -107,6 +107,125 @@ final class RuleEngineTests: XCTestCase {
         )
     }
 
+    func testMultipleCustomWeekdaySchemesKeepIndependentTimes() throws {
+        let engine = RuleEngine()
+        let rules = [
+            ScheduleRule(
+                name: "周一和周二",
+                customWeekdays: [2, 3],
+                startMinutes: 9 * 60,
+                endMinutes: 10 * 60,
+                protectionLeadMinutes: 15
+            ),
+            ScheduleRule(
+                name: "周三和周四",
+                customWeekdays: [4, 5],
+                startMinutes: 14 * 60,
+                endMinutes: 15 * 60,
+                protectionLeadMinutes: 15
+            ),
+        ]
+        let configuration = AppConfiguration(schedules: rules)
+        let wednesdayAfternoon = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 11,
+            day: 25,
+            hour: 14,
+            minute: 30
+        )))
+        let mondayAfternoon = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 11,
+            day: 23,
+            hour: 14,
+            minute: 30
+        )))
+
+        XCTAssertEqual(
+            engine.activeRestriction(
+                configuration: configuration,
+                usage: DailyUsage(dayKey: "2026-11-25"),
+                now: wednesdayAfternoon,
+                calendar: calendar
+            )?.reason,
+            .schedule
+        )
+        XCTAssertNil(
+            engine.activeRestriction(
+                configuration: configuration,
+                usage: DailyUsage(dayKey: "2026-11-23"),
+                now: mondayAfternoon,
+                calendar: calendar
+            )
+        )
+    }
+
+    func testWorkdayModeUsesMakeupWorkdayOverride() throws {
+        let engine = RuleEngine()
+        let rule = ScheduleRule(
+            name: "工作日",
+            dayMode: .workdays,
+            startMinutes: 9 * 60,
+            endMinutes: 10 * 60
+        )
+        let configuration = AppConfiguration(schedules: [rule])
+        let saturdayMakeupDay = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 2,
+            day: 14,
+            hour: 9,
+            minute: 30
+        )))
+        let holidays = ChineseHolidayCalendar(
+            overrides: ["2026-02-14": false],
+            loadedYears: [2026]
+        )
+
+        XCTAssertEqual(
+            engine.activeRestriction(
+                configuration: configuration,
+                usage: DailyUsage(dayKey: "2026-02-14"),
+                now: saturdayMakeupDay,
+                calendar: calendar,
+                holidayCalendar: holidays
+            )?.reason,
+            .schedule
+        )
+    }
+
+    func testNonWorkdayModeUsesHolidayOverride() throws {
+        let engine = RuleEngine()
+        let rule = ScheduleRule(
+            name: "非工作日",
+            dayMode: .nonWorkdays,
+            startMinutes: 9 * 60,
+            endMinutes: 10 * 60
+        )
+        let configuration = AppConfiguration(schedules: [rule])
+        let sundayHoliday = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 2,
+            day: 15,
+            hour: 9,
+            minute: 30
+        )))
+        let holidays = ChineseHolidayCalendar(
+            overrides: ["2026-02-15": true],
+            loadedYears: [2026]
+        )
+
+        XCTAssertEqual(
+            engine.activeRestriction(
+                configuration: configuration,
+                usage: DailyUsage(dayKey: "2026-02-15"),
+                now: sundayHoliday,
+                calendar: calendar,
+                holidayCalendar: holidays
+            )?.reason,
+            .schedule
+        )
+    }
+
     func testTemporaryUnlockSuppressesAllRestrictions() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let engine = RuleEngine()
@@ -226,6 +345,7 @@ final class RuleEngineTests: XCTestCase {
         XCTAssertFalse(configuration.appearance.weatherEnabled)
         XCTAssertEqual(configuration.schedule.protectionLeadMinutes, 15)
         XCTAssertTrue(configuration.hideApplicationInFinder)
+        XCTAssertEqual(configuration.schedules.count, 1)
     }
 
     func testClockAppearanceRoundTrips() throws {

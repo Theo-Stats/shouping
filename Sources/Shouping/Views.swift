@@ -301,69 +301,31 @@ private struct RulesView: View {
             }
 
             Section("定时专注") {
-                Toggle(
-                    "启用定时规则",
-                    isOn: Binding(
-                        get: { controller.configuration.schedule.isEnabled },
-                        set: { value in controller.mutateConfiguration { $0.schedule.isEnabled = value } }
-                    )
-                )
-
-                HStack(spacing: 18) {
-                    ScheduleTimePicker(
-                        title: "开始",
-                        minutes: Binding(
-                            get: { controller.configuration.schedule.startMinutes },
-                            set: { value in controller.mutateConfiguration { $0.schedule.startMinutes = value } }
-                        )
-                    )
-                    ScheduleTimePicker(
-                        title: "结束",
-                        minutes: Binding(
-                            get: { controller.configuration.schedule.endMinutes },
-                            set: { value in controller.mutateConfiguration { $0.schedule.endMinutes = value } }
-                        )
-                    )
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("中国大陆工作日历")
+                            .font(.headline)
+                        Text(controller.holidayStatusText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("刷新") { controller.refreshHolidayCalendar(force: true) }
                 }
-
-                Text("生效日")
+                Text("“工作日”包含法定补班日，“非工作日”包含周末和法定假日。数据按年度自动获取；无网络或新年度尚未公布时回退为周一至周五/周六周日。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
-                    ForEach(Array(Self.weekdays.enumerated()), id: \.offset) { index, name in
-                        let weekday = index + 1
-                        let selected = controller.configuration.schedule.activeWeekdays.contains(weekday)
-                        Button(name) {
-                            controller.mutateConfiguration { config in
-                                if selected {
-                                    config.schedule.activeWeekdays.remove(weekday)
-                                } else {
-                                    config.schedule.activeWeekdays.insert(weekday)
-                                }
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(selected ? .accentColor : .secondary)
-                        .background(selected ? Color.accentColor.opacity(0.12) : Color.clear)
-                    }
+
+                ForEach(controller.configuration.schedules) { rule in
+                    ScheduleRuleEditor(rule: rule)
                 }
-                if controller.configuration.schedule.startMinutes > controller.configuration.schedule.endMinutes {
-                    Text("跨午夜规则：结束时间属于次日。")
-                        .font(.caption)
+
+                if controller.configuration.schedules.isEmpty {
+                    Text("尚未添加定时方案")
                         .foregroundStyle(.secondary)
                 }
-                Stepper(
-                    "提前保护：\(controller.configuration.schedule.protectionLeadMinutes) 分钟",
-                    value: Binding(
-                        get: { controller.configuration.schedule.protectionLeadMinutes },
-                        set: { value in controller.mutateConfiguration { $0.schedule.protectionLeadMinutes = value } }
-                    ),
-                    in: 0...120,
-                    step: 5
-                )
-                Text("保护期内，Finder、终端、活动监视器和系统设置等高风险工具会显示遮罩；普通工作应用不受影响。设为 0 可关闭。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                Button("＋ 添加时间方案") { controller.addScheduleRule() }
             }
 
             Section("每日额度") {
@@ -482,6 +444,111 @@ private struct RulesView: View {
     }
 
     private static let weekdays = ["日", "一", "二", "三", "四", "五", "六"]
+}
+
+private struct ScheduleRuleEditor: View {
+    @EnvironmentObject private var controller: AppController
+    let rule: ScheduleRule
+
+    private static let weekdays = ["日", "一", "二", "三", "四", "五", "六"]
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    TextField("方案名称", text: binding(\.name))
+                        .textFieldStyle(.roundedBorder)
+                    Toggle("启用", isOn: binding(\.isEnabled))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    Button(role: .destructive) {
+                        controller.removeScheduleRule(id: rule.id)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("删除这个时间方案")
+                }
+
+                HStack(spacing: 18) {
+                    ScheduleTimePicker(title: "开始", minutes: binding(\.startMinutes))
+                    ScheduleTimePicker(title: "结束", minutes: binding(\.endMinutes))
+                }
+
+                Picker("日期类型", selection: binding(\.dayMode)) {
+                    ForEach(ScheduleDayMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if currentRule.dayMode == .customWeekdays {
+                    HStack(spacing: 8) {
+                        ForEach(Array(Self.weekdays.enumerated()), id: \.offset) { index, name in
+                            let weekday = index + 1
+                            let selected = currentRule.customWeekdays.contains(weekday)
+                            Button(name) {
+                                controller.updateScheduleRule(id: rule.id) { target in
+                                    if selected {
+                                        target.customWeekdays.remove(weekday)
+                                    } else {
+                                        target.customWeekdays.insert(weekday)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(selected ? .accentColor : .secondary)
+                            .background(selected ? Color.accentColor.opacity(0.12) : Color.clear)
+                        }
+                    }
+                }
+
+                Text(dayModeExplanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Stepper(
+                    "提前保护：\(currentRule.protectionLeadMinutes) 分钟",
+                    value: binding(\.protectionLeadMinutes),
+                    in: 0...120,
+                    step: 5
+                )
+
+                if currentRule.startMinutes > currentRule.endMinutes {
+                    Text("跨午夜规则：结束时间属于次日。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(6)
+        }
+    }
+
+    private var currentRule: ScheduleRule {
+        controller.configuration.schedules.first { $0.id == rule.id } ?? rule
+    }
+
+    private var dayModeExplanation: String {
+        switch currentRule.dayMode {
+        case .customWeekdays:
+            return "只在你选中的星期生效。"
+        case .workdays:
+            return "按中国大陆工作日生效，包含周末补班，排除法定假日。"
+        case .nonWorkdays:
+            return "按中国大陆非工作日生效，包含周末和法定假日，排除补班日。"
+        }
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<ScheduleRule, Value>) -> Binding<Value> {
+        Binding(
+            get: { currentRule[keyPath: keyPath] },
+            set: { value in
+                controller.updateScheduleRule(id: rule.id) { target in
+                    target[keyPath: keyPath] = value
+                }
+            }
+        )
+    }
 }
 
 private struct ScheduleTimePicker: View {

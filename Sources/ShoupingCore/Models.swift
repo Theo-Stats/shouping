@@ -132,6 +132,67 @@ public struct ScheduleSettings: Codable, Equatable, Sendable {
     }
 }
 
+public enum ScheduleDayMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case customWeekdays
+    case workdays
+    case nonWorkdays
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .customWeekdays: return "自定义星期"
+        case .workdays: return "工作日"
+        case .nonWorkdays: return "非工作日"
+        }
+    }
+}
+
+public struct ScheduleRule: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var isEnabled: Bool
+    public var dayMode: ScheduleDayMode
+    public var customWeekdays: Set<Int>
+    public var startMinutes: Int
+    public var endMinutes: Int
+    public var protectionLeadMinutes: Int
+
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        isEnabled: Bool = true,
+        dayMode: ScheduleDayMode = .customWeekdays,
+        customWeekdays: Set<Int> = Set(2...6),
+        startMinutes: Int = 9 * 60,
+        endMinutes: Int = 11 * 60 + 30,
+        protectionLeadMinutes: Int = 15
+    ) {
+        self.id = id
+        self.name = name
+        self.isEnabled = isEnabled
+        self.dayMode = dayMode
+        self.customWeekdays = customWeekdays
+        self.startMinutes = startMinutes
+        self.endMinutes = endMinutes
+        self.protectionLeadMinutes = protectionLeadMinutes
+    }
+}
+
+extension ScheduleSettings {
+    public func migratingToRule(name: String = "方案一") -> ScheduleRule {
+        ScheduleRule(
+            name: name,
+            isEnabled: isEnabled,
+            dayMode: .customWeekdays,
+            customWeekdays: activeWeekdays,
+            startMinutes: startMinutes,
+            endMinutes: endMinutes,
+            protectionLeadMinutes: protectionLeadMinutes
+        )
+    }
+}
+
 public struct FocusSettings: Codable, Equatable, Sendable {
     public var strength: InterventionStrength
     public var enforceKeyboardLock: Bool
@@ -192,6 +253,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var focus: FocusSettings
     public var appearance: AppearanceSettings
     public var schedule: ScheduleSettings
+    public var schedules: [ScheduleRule]
     public var limit: LimitSettings
     public var cycle: CycleSettings
     public var allowedApplications: [AppDescriptor]
@@ -207,6 +269,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         focus: FocusSettings = FocusSettings(),
         appearance: AppearanceSettings = AppearanceSettings(),
         schedule: ScheduleSettings = ScheduleSettings(),
+        schedules: [ScheduleRule] = [],
         limit: LimitSettings = LimitSettings(),
         cycle: CycleSettings = CycleSettings(),
         allowedApplications: [AppDescriptor] = [],
@@ -221,6 +284,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.focus = focus
         self.appearance = appearance
         self.schedule = schedule
+        self.schedules = schedules.isEmpty ? [schedule.migratingToRule()] : schedules
         self.limit = limit
         self.cycle = cycle
         self.allowedApplications = allowedApplications
@@ -245,6 +309,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         case focus
         case appearance
         case schedule
+        case schedules
         case limit
         case cycle
         case allowedApplications
@@ -262,6 +327,11 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         focus = try container.decodeIfPresent(FocusSettings.self, forKey: .focus) ?? FocusSettings()
         appearance = try container.decodeIfPresent(AppearanceSettings.self, forKey: .appearance) ?? AppearanceSettings()
         schedule = try container.decodeIfPresent(ScheduleSettings.self, forKey: .schedule) ?? ScheduleSettings()
+        if let decodedSchedules = try container.decodeIfPresent([ScheduleRule].self, forKey: .schedules) {
+            schedules = decodedSchedules
+        } else {
+            schedules = [schedule.migratingToRule()]
+        }
         limit = try container.decodeIfPresent(LimitSettings.self, forKey: .limit) ?? LimitSettings()
         cycle = try container.decodeIfPresent(CycleSettings.self, forKey: .cycle) ?? CycleSettings()
         allowedApplications = try container.decodeIfPresent([AppDescriptor].self, forKey: .allowedApplications) ?? []

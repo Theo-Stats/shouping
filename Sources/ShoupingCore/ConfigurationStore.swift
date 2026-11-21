@@ -46,4 +46,8 @@ public enum AppSupportPaths {
     public static var usageURL: URL {
         baseDirectory.appendingPathComponent("usage.json")
     }
+
+    public static var holidayCalendarURL: URL {
+        baseDirectory.appendingPathComponent("china-holidays.json")
+    }
 }

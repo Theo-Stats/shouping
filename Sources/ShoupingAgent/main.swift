@@ -34,11 +34,13 @@ do {
 
     let configurationStore = ConfigurationStore(fileURL: AppSupportPaths.configurationURL)
     let usageStore = UsageStore(fileURL: AppSupportPaths.usageURL)
+    let holidayCalendar = HolidayCalendarCache.load(from: AppSupportPaths.holidayCalendarURL)
     let configuration = configurationStore.load()
     let restriction = RuleEngine().activeRestriction(
         configuration: configuration,
         usage: usageStore.daily,
         now: Date(),
+        holidayCalendar: holidayCalendar,
         honorTemporaryUnlock: false
     )
 

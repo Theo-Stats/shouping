@@ -34,6 +34,7 @@ final class AppController: ObservableObject {
     @Published private(set) var authorizationError: String?
     @Published private(set) var weather: WeatherSnapshot?
     @Published private(set) var weatherStatusText = "天气未加载"
+    @Published private(set) var holidayStatusText = "工作日历使用本地星期规则"
 
     var onStatusChange: (() -> Void)?
 
@@ -42,6 +43,7 @@ final class AppController: ObservableObject {
     private let ruleEngine = RuleEngine()
     private let exitPasswordStore = ExitPasswordStore()
     private let weatherService = WeatherService()
+    private var holidayCalendar: ChineseHolidayCalendar
     private lazy var overlayController = OverlayController(controller: self)
     private lazy var inputGate = InputGate { [weak self] in
         self?.requestPauseAuthorization()
@@ -54,15 +56,21 @@ final class AppController: ObservableObject {
     private var lastTick = Date()
     private var secondsSinceUsagePersist: TimeInterval = 0
     private var lastWeatherRefresh: Date?
+    private var lastHolidayRefreshCheck: Date?
     private var previewEnd: Date?
     private var cycleTracker = CycleTracker()
 
     init() {
         configurationStore = ConfigurationStore(fileURL: AppSupportPaths.configurationURL)
         usageStore = UsageStore(fileURL: AppSupportPaths.usageURL)
+        holidayCalendar = HolidayCalendarCache.load(from: AppSupportPaths.holidayCalendarURL)
         configuration = configurationStore.load()
         usage = usageStore.daily
         hasExitPassword = exitPasswordStore.hasPassword
+        if !holidayCalendar.loadedYears.isEmpty {
+            let years = holidayCalendar.loadedYears.sorted().map(String.init).joined(separator: "、")
+            holidayStatusText = "已缓存中国大陆工作日历：\(years) 年"
+        }
     }
 
     func start() {
@@ -80,6 +88,7 @@ final class AppController: ObservableObject {
         }
         tick()
         refreshWeatherIfNeeded()
+        refreshHolidayCalendar(force: false)
     }
 
     func shutdown() {
@@ -106,6 +115,30 @@ final class AppController: ObservableObject {
         configurationStore.save(next)
         tick()
         onStatusChange?()
+    }
+
+    func addScheduleRule() {
+        mutateConfiguration { configuration in
+            configuration.schedules.append(
+                ScheduleRule(
+                    name: "方案\(configuration.schedules.count + 1)",
+                    isEnabled: false
+                )
+            )
+        }
+    }
+
+    func updateScheduleRule(id: UUID, change: (inout ScheduleRule) -> Void) {
+        mutateConfiguration { configuration in
+            guard let index = configuration.schedules.firstIndex(where: { $0.id == id }) else { return }
+            change(&configuration.schedules[index])
+        }
+    }
+
+    func removeScheduleRule(id: UUID) {
+        mutateConfiguration { configuration in
+            configuration.schedules.removeAll { $0.id == id }
+        }
     }
 
     func startQuickFocus(minutes: Int? = nil) {
@@ -590,6 +623,9 @@ final class AppController: ObservableObject {
         }
         usage = usageStore.daily
         refreshWeatherIfNeeded(now: now)
+        if lastHolidayRefreshCheck == nil || now.timeIntervalSince(lastHolidayRefreshCheck!) >= 3_600 {
+            refreshHolidayCalendar(force: false)
+        }
 
         if let previewEnd, previewEnd > now {
             activeRestriction = ActiveRestriction(
@@ -613,7 +649,8 @@ final class AppController: ObservableObject {
         var next = ruleEngine.activeRestriction(
             configuration: configuration,
             usage: usage,
-            now: now
+            now: now,
+            holidayCalendar: holidayCalendar
         )
         if next == nil, let cycleRestEnd = cycleTracker.restEnd, cycleRestEnd > now {
             next = ActiveRestriction(
@@ -706,6 +743,32 @@ final class AppController: ObservableObject {
         } catch {
             NSLog("Shouping Finder visibility update failed: %@", error.localizedDescription)
             return false
+        }
+    }
+
+    func refreshHolidayCalendar(force: Bool = true) {
+        lastHolidayRefreshCheck = Date()
+        if !force,
+           let updatedAt = holidayCalendar.updatedAt,
+           Date().timeIntervalSince(updatedAt) < 86_400,
+           holidayCalendar.loadedYears.contains(Calendar.current.component(.year, from: Date())) {
+            return
+        }
+        let existing = holidayCalendar
+        holidayStatusText = "正在更新工作日历…"
+        Task { [weak self] in
+            guard let self else { return }
+            let result = await HolidayCalendarService().refresh(existing: existing)
+            self.holidayCalendar = result.calendar
+            try? HolidayCalendarCache.save(result.calendar, to: AppSupportPaths.holidayCalendarURL)
+
+            if result.loadedYears.isEmpty {
+                self.holidayStatusText = "节假日更新失败，已回退为周一至周五"
+            } else {
+                let years = result.loadedYears.map(String.init).joined(separator: "、")
+                self.holidayStatusText = "已更新中国大陆工作日历：\(years) 年"
+            }
+            self.tick()
         }
     }
 
@@ -820,6 +883,7 @@ final class AppController: ObservableObject {
             configuration: configuration,
             usage: usage,
             now: Date(),
+            holidayCalendar: holidayCalendar,
             honorTemporaryUnlock: false
         )
     }
